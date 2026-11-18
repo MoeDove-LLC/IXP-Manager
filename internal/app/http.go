@@ -69,6 +69,7 @@ type App struct {
 	mailer                                               notify.Sender
 	backgroundCancel                                     context.CancelFunc
 	backgroundDone                                       chan struct{}
+	backgroundHealth                                     schedulerHealthState
 	backgroundMu                                         sync.Mutex
 	telemetry                                            *telemetry.Store
 	documentQuota                                        int64
@@ -325,7 +326,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.URL.Path == "/api/jobs" || strings.HasPrefix(r.URL.Path, "/api/jobs/") {
-		a.jobs(w, r, user)
+		a.jobs(w, r, user, session)
 		return
 	}
 	if r.URL.Path == "/api/invitations" || strings.HasPrefix(r.URL.Path, "/api/invitations/") {

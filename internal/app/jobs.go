@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,23 +31,42 @@ func jobLabel(kind string) string {
 		return ""
 	}
 }
-func (a *App) jobs(w http.ResponseWriter, r *http.Request, user Record) {
-	if str(user, "role") != "admin" {
+func (a *App) jobs(w http.ResponseWriter, r *http.Request, user Record, session Session) {
+	if session.API || str(user, "role") != "admin" {
 		problem(w, 403, "administrator required")
 		return
 	}
 	if r.Method == "GET" && r.URL.Path == "/api/jobs" {
-		items := []Record{}
-		for _, j := range a.store.Snapshot().Jobs {
-			if jobLabel(j.Kind) != "" {
-				lastError := ""
-				if j.LastError != "" {
-					lastError = "任务未完成，请检查配置并重试"
-				}
-				items = append(items, Record{"kind": j.Kind, "label": jobLabel(j.Kind), "status": j.Status, "nextRunAt": j.NextRunAt, "lastRunAt": optionalTime(j.LastRunAt), "lastError": lastError})
-			}
+		a.store.mu.RLock()
+		_, err := a.atlasActor(&a.store.state, user, session, "admin")
+		if a.store.closed || err != nil {
+			a.store.mu.RUnlock()
+			problem(w, 403, "administrator authority changed")
+			return
 		}
-		respond(w, 200, Record{"items": items})
+		jobs := slices.Clone(a.store.state.Jobs)
+		a.store.mu.RUnlock()
+		now := time.Now()
+		items := []Record{}
+		for _, j := range jobs {
+			label := jobLabel(j.Kind)
+			if label == "" {
+				continue
+			}
+			lastError := ""
+			if j.LastError != "" {
+				lastError = "任务未完成，请检查配置并重试"
+			}
+			var leaseUntil any
+			if j.Status == "running" {
+				leaseUntil = optionalTime(j.LeaseUntil)
+			}
+			items = append(items, Record{
+				"kind": j.Kind, "label": label, "status": j.Status, "health": jobHealth(j, now),
+				"nextRunAt": j.NextRunAt, "lastRunAt": optionalTime(j.LastRunAt), "lastError": lastError, "leaseUntil": leaseUntil,
+			})
+		}
+		respond(w, 200, Record{"items": items, "scheduler": a.schedulerHealth(now), "checkedAt": now.UTC()})
 		return
 	}
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/jobs/"), "/")
@@ -54,33 +74,65 @@ func (a *App) jobs(w http.ResponseWriter, r *http.Request, user Record) {
 		problem(w, 404, "unknown fixed job kind")
 		return
 	}
+	status := http.StatusConflict
 	err := a.store.Update(func(s *State) error {
+		if _, err := a.atlasActor(s, user, session, "admin"); err != nil {
+			status = http.StatusForbidden
+			return errors.New("administrator authority changed")
+		}
 		for i := range s.Jobs {
 			j := &s.Jobs[i]
 			if j.Kind != parts[0] {
 				continue
 			}
-			if j.Status == "running" && j.LeaseUntil.After(time.Now()) {
+			now := time.Now().UTC()
+			if j.Status == "running" && j.LeaseUntil.After(now) {
 				return errors.New("job is already running")
 			}
-			j.NextRunAt = time.Now().UTC()
+			j.NextRunAt = now
 			j.Status = "idle"
+			j.Lease = ""
+			j.LeaseUntil = time.Time{}
 			audit(s, str(user, "id"), "queue-job", "jobs", j.Kind)
 			return nil
 		}
 		return errors.New("job not found")
 	})
 	if err != nil {
-		problem(w, 409, err.Error())
+		problem(w, status, err.Error())
 		return
 	}
 	respond(w, 200, Record{"ok": true})
 }
+
+func jobHealth(j Job, now time.Time) string {
+	if j.Status == "running" {
+		if !j.LeaseUntil.After(now) {
+			return "lease-expired"
+		}
+		return "running"
+	}
+	if j.Status != "idle" {
+		return "unknown"
+	}
+	if j.NextRunAt.After(now) {
+		return "scheduled"
+	}
+	if now.Sub(j.NextRunAt) > schedulerStallAfter {
+		return "overdue"
+	}
+	return "due"
+}
+
+func fixedJobReady(j Job, now time.Time) bool {
+	return jobLabel(j.Kind) != "" && (j.Status == "idle" && !j.NextRunAt.After(now) || j.Status == "running" && !j.LeaseUntil.After(now))
+}
+
 func (a *App) runDueJob(now time.Time) error {
 	state := a.store.Snapshot()
 	ready := false
 	for _, j := range state.Jobs {
-		if jobLabel(j.Kind) != "" && (!j.NextRunAt.After(now) && j.Status == "idle" || j.Status == "running" && !j.LeaseUntil.After(now)) {
+		if fixedJobReady(j, now) {
 			ready = true
 			break
 		}
@@ -93,10 +145,7 @@ func (a *App) runDueJob(now time.Time) error {
 	if err := a.store.Update(func(s *State) error {
 		for i := range s.Jobs {
 			j := &s.Jobs[i]
-			if jobLabel(j.Kind) == "" {
-				continue
-			}
-			if j.Status == "idle" && j.NextRunAt.After(now) || j.Status == "running" && j.LeaseUntil.After(now) {
+			if !fixedJobReady(*j, now) {
 				continue
 			}
 			j.Status = "running"

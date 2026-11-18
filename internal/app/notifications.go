@@ -174,20 +174,25 @@ func (a *App) StartBackground(parent context.Context) {
 	}
 	ctx, cancel := context.WithCancel(parent)
 	a.backgroundCancel = cancel
-	a.backgroundDone = make(chan struct{})
+	done := make(chan struct{})
+	a.backgroundDone = done
+	a.backgroundHealth = schedulerHealthState{startedAt: time.Now(), canceled: ctx.Done()}
 	go func() {
-		defer close(a.backgroundDone)
+		defer func() {
+			a.backgroundMu.Lock()
+			defer a.backgroundMu.Unlock()
+			a.backgroundHealth.stoppedAt = time.Now()
+			a.backgroundHealth.cycleStartedAt = time.Time{}
+			a.backgroundHealth.currentPhase = ""
+			close(done)
+		}()
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 		for {
 			if ctx.Err() != nil {
 				return
 			}
-			now := time.Now().UTC()
-			_ = a.runDueJob(now)
-			_ = a.deliverOne(ctx, now)
-			_ = a.atlasTick(ctx, now)
-			_ = a.sweepLookingGlass(now)
+			a.runBackgroundCycle(ctx, time.Now())
 			select {
 			case <-ctx.Done():
 				return
