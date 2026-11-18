@@ -21,6 +21,12 @@ import {
 import { api, save, APIError, captureSessionContext, resourceMutation } from "@/lib/api";
 import { resourceForm, withoutPasswords } from "@/lib/resource-conflicts";
 import { singleRouterFamily } from "@/lib/router-platforms";
+import {
+  fanoutDependencies,
+  fanoutDraftProblem,
+  fanoutPortLabel,
+  fanoutPortOwner,
+} from "@/lib/reseller-fanouts";
 import type { ResourceConflictState } from "@/components/ResourceConflict";
 import {
   resources,
@@ -54,6 +60,7 @@ const PeerReadiness = lazy(() => import("@/components/PeerReadiness"));
 const ResourceConflict = lazy(() => import("@/components/ResourceConflict"));
 const FabricAssignment = lazy(() => import("@/components/FabricAssignment"));
 const ContactGroupExport = lazy(() => import("@/components/ContactGroupExport"));
+const ResellerFanoutFields = lazy(() => import("@/components/ResellerFanoutFields"));
 const referenceLabel = (
   row: Row,
   kind: string,
@@ -80,6 +87,7 @@ const relatedKinds = (kind: string, fields: Field[]) => [
   ...new Set([
     ...fields.flatMap((field) => (field.ref ? [field.ref] : [])),
     ...(kind === "connections" ? ["switches"] : []),
+    ...(kind === "reseller-fanouts" ? fanoutDependencies : []),
     ...(kind === "connections" ||
     fields.some((field) => field.ref === "vlans" || field.ref === "switches")
       ? ["infrastructures"]
@@ -271,6 +279,8 @@ export default function Resources({
       ? (routeParameters.get("consoleServerId") ?? "")
       : "";
   const isConsole = ["console-servers", "console-connections"].includes(kind);
+  const isFanout = kind === "reseller-fanouts";
+  const [fanoutRefreshing, setFanoutRefreshing] = useState(false);
   const [logoMember, setLogoMember] = useState<Row | null>(null);
   const [welcomeMember, setWelcomeMember] = useState<{
     member: Row;
@@ -312,6 +322,8 @@ export default function Resources({
       deploymentRequired: boolean;
     } | null>(null);
   const conflictRequest = useRef(0);
+  const fanoutRequest = useRef(0);
+  useEffect(() => () => { fanoutRequest.current++; }, [kind, role]);
   useEffect(() => { setWelcomeMember(null); }, [kind, role, targetId]);
   useEffect(() => {
     if (targetId) setSearch("");
@@ -436,6 +448,24 @@ export default function Resources({
       setLoading(false);
     }
   };
+  const refreshFanoutOptions = async () => {
+    const request = ++fanoutRequest.current;
+    const contextCurrent = captureSessionContext();
+    setFanoutRefreshing(true);
+    setFormError("");
+    try {
+      const results = await Promise.all(fanoutDependencies.map(resource =>
+        api<{ items: Row[] }>(`/resources/${resource}`, { cache: "no-store" }),
+      ));
+      if (request !== fanoutRequest.current || !contextCurrent()) return;
+      setRefs(Object.fromEntries(fanoutDependencies.map((resource, index) => [resource, results[index].items])));
+      setFormNotice("端口选项已刷新。当前草稿和打开时的记录版本已保留，保存时仍会复核归属与占用。");
+    } catch (e) {
+      if (request === fanoutRequest.current && contextCurrent()) setFormError(message(e));
+    } finally {
+      if (request === fanoutRequest.current && contextCurrent()) setFanoutRefreshing(false);
+    }
+  };
   useEffect(() => {
     void load();
     setSearch("");
@@ -445,6 +475,8 @@ export default function Resources({
   const display = (r: Row, key: string) => {
     const field = schema.fields.find((f) => f.key === key),
       value = r[key];
+    if (isFanout && ["peeringPortId", "fanoutPortId"].includes(key))
+      return `${fanoutPortLabel(String(value ?? ""), refs)} · 库存归属：${fanoutPortOwner(String(value ?? ""), refs)}`;
     if (kind === "routers" && key === "role")
       return statusLabels[String(value || "route-server")] ?? String(value);
     if (key === "speed" && kind === "connections") {
@@ -539,10 +571,12 @@ export default function Resources({
     setFormError("");
     setFormNotice("");
     setOpen(true);
+    if (isFanout) void refreshFanoutOptions();
   };
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (conflict) return;
+    if (isFanout && fanoutRefreshing) return;
     if (kind === "routers" && !formRouterCapability) {
       setFormError("平台能力尚未加载，请刷新页面后核对设置。");
       return;
@@ -560,6 +594,10 @@ export default function Resources({
     setFormNotice("");
     try {
       const payload: Record<string, unknown> = {};
+      if (isFanout) {
+        const problem = fanoutDraftProblem(form, refs, editing?.id);
+        if (problem) throw new Error(problem);
+      }
       if (kind === "routers" && form.role === "as112" && !form.as112IPv4 && !form.as112IPv6)
         throw new Error("AS112 至少需要选择一个服务地址族。");
       if (
@@ -706,7 +744,11 @@ export default function Resources({
       ) {
         setFormError("");
         await loadConflict("edit", editing);
-      } else setFormError(message(e));
+      } else {
+        setFormError(message(e));
+        if (isFanout && e instanceof APIError && e.status === 409)
+          setFormNotice("草稿已保留。请刷新端口选项并核对当前归属，再手动保存；不会自动覆盖或重试。");
+      }
     } finally {
       setBusy(false);
     }
@@ -817,6 +859,9 @@ export default function Resources({
           </div>
         )}
       </Heading>
+      {isFanout && (
+        <p className="notice mb-4">此处只登记本地配线库存，不推断 VLAN、地址或 BGP 关联，也不操作设备。编辑可替换所选端口；释放只解除本条库存关系。</p>
+      )}
       {consoleFilter && (
         <div className="notice mb-4 flex flex-wrap items-center justify-between gap-2">
           <span>
@@ -918,8 +963,8 @@ export default function Resources({
           <Loading />
         ) : !rows.length ? (
           <Empty
-            title={`添加第一个${schema.singular}`}
-            description={`在这里维护${schema.label}信息。保存的记录会用于关联配置与后续运维。`}
+            title={isFanout ? "暂无经销商分流记录" : `添加第一个${schema.singular}`}
+            description={isFanout ? "先维护成员的直属经销商与实际接入，再登记左侧接入端口和右侧经销商端口。" : `在这里维护${schema.label}信息。保存的记录会用于关联配置与后续运维。`}
             action={canWrite ? `新增${schema.singular}` : undefined}
             onAction={() => edit()}
           />
@@ -1065,7 +1110,7 @@ export default function Resources({
                             variant="ghost"
                             size="icon"
                             className="text-muted-foreground hover:text-destructive"
-                            aria-label={`删除 ${r.name}`}
+                            aria-label={isFanout ? `释放分流关系 ${r.name}` : `删除 ${r.name}`}
                             onClick={() => {
                               clearConflict();
                               setDeleting(structuredClone(r));
@@ -1165,6 +1210,15 @@ export default function Resources({
                 />
               </Suspense>
             )}
+            {isFanout && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+                <p className="text-sm text-muted-foreground">左右端口均按当前库存筛选。更换或释放前请核对实际配线。</p>
+                <Button type="button" variant="outline" size="sm" disabled={busy || !!conflict || fanoutRefreshing} onClick={() => void refreshFanoutOptions()}>
+                  <RefreshCw className={fanoutRefreshing ? "animate-spin" : ""} />
+                  刷新端口选项
+                </Button>
+              </div>
+            )}
             {kind === "routers" && form.role === "route-collector" && (
               <p className="notice">
                 路由收集器仅接收符合导入策略的路由，不向任何邻居导出路由。
@@ -1224,12 +1278,13 @@ export default function Resources({
                 </p>
               )}
             <fieldset
-              disabled={busy || !!conflict}
+              disabled={busy || !!conflict || (isFanout && fanoutRefreshing)}
               className="form-grid min-w-0"
             >
               {schema.fields
                 .filter(
                   (f) =>
+                    !(isFanout && ["resellerId", "peeringPortId", "fanoutPortId"].includes(f.key)) &&
                     !(kind === "routers" && f.key.startsWith("as112") && form.role !== "as112") &&
                     !(kind === "routers" && ["as112NextHop4", "as112NextHop6"].includes(f.key) && (form.platform !== "junos" || !form[f.key === "as112NextHop4" ? "as112IPv4" : "as112IPv6"])) &&
                     !(kind === "routers" && form.role === "as112" && ["rpkiPolicy", "rpkiHost", "rpkiPort", "rpkiExpireSeconds", "rfc1997Passthrough"].includes(f.key)) &&
@@ -1274,7 +1329,11 @@ export default function Resources({
                         {f.section}
                       </h3>
                     )}
-                    {kind === "patch-ports" &&
+                    {isFanout && f.key === "memberId" ? (
+                      <Suspense fallback={<Loading />}>
+                        <ResellerFanoutFields form={form} refs={refs} editingId={editing?.id} onChange={setForm} />
+                      </Suspense>
+                    ) : kind === "patch-ports" &&
                     (["status", "memberId", "circuitId"].includes(f.key) ||
                       (editing &&
                         !["available", "prewired", "broken"].includes(
@@ -1459,6 +1518,7 @@ export default function Resources({
               <Button
                 disabled={
                   busy ||
+                  (isFanout && fanoutRefreshing) ||
                   !!conflict ||
                   unsupportedRouterRole ||
                   !!routerFamilyError ||
@@ -1482,11 +1542,12 @@ export default function Resources({
       >
         <DialogContent className={conflict ? "max-w-3xl" : undefined}>
           <DialogTitle className="text-lg font-semibold">
-            删除{schema.singular}
+            {isFanout ? "释放分流关系" : `删除${schema.singular}`}
           </DialogTitle>
           <DialogDescription className="text-sm leading-6 text-muted-foreground">
-            确定删除「{deleting?.name}
-            」？已被其他记录使用的数据需要先解除关联。此操作无法撤销。
+            {isFanout
+              ? `确定释放「${deleting?.name}」？仅删除这条本地配线记录，保留成员接入和物理端口，不改变设备配置。`
+              : <>确定删除「{deleting?.name}」？已被其他记录使用的数据需要先解除关联。此操作无法撤销。</>}
           </DialogDescription>
           <ErrorNotice message={formError} />
           {kind === "console-servers" &&
@@ -1520,7 +1581,7 @@ export default function Resources({
                 onResolve={(latest) => {
                   setDeleting(structuredClone(latest));
                   clearConflict();
-                  setFormNotice("已采用核对后的服务器版本。请再次确认删除。");
+                  setFormNotice(isFanout ? "已采用核对后的服务器版本。请再次确认释放。" : "已采用核对后的服务器版本。请再次确认删除。");
                   setFormError("");
                 }}
                 onCloseDeleted={() => {
@@ -1552,7 +1613,7 @@ export default function Resources({
               }
               onClick={() => void remove()}
             >
-              {busy ? "正在删除…" : "确认删除"}
+              {isFanout ? busy ? "正在释放…" : "确认释放" : busy ? "正在删除…" : "确认删除"}
             </Button>
           </div>
         </DialogContent>

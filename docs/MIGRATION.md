@@ -20,7 +20,7 @@
 | 标签和内部备注 | `CustomerNote.php`、`CustomerTag.php`、API `Customer/Note/*` | 已保留内部标签/备注隐私并迁移旧资料；现有staff自己的订阅偏好、实体绑定、CAS、未读游标和加密通知。旧正文与两种prefs格式现有独立受限来源包、只读归档、管理员显式账号关联及本人短效预览/CAS接受；未知值不授予权限，旧账号/邮箱不自动映射，旧阅读记录不替代当前游标。生产资料对应关系仍须核对 | 来源保真与秘密排除、成员隔离、订阅冲突、撤权、本人接受和完整恢复测试 |
 | 机房与设备资产 | `Location.php`、`Cabinet.php`、`Switcher.php`、`Vendor.php`、`CustomerEquipment.php` | 已补齐机柜 U 位重叠/容量检查、序列号、厂商与 IXP 自有设备迁移；完整设备历史与 SNMP 发现仍待补齐 | 关联校验、资产导入、删除限制、实际 UI 验证 |
 | 多交换基础设施 | `Infrastructure.php`、`NetworkInfo.php` | 已实现多网络隔离、按网络复用 VLAN 编号、成组事务迁移、主网络、IX-F 排除、多网段及旧资料转换；生产拓扑切换仍需现场核对 | 多基础设施、多 VLAN 的地址与导出边界测试 |
-| 端口与二层接入 | `Interfaces/*`、`SwitchPort.php` | 已实现单端口/LAG、同组多 VLAN、MTU、真实端口容量和冲突约束；经销商 fanout、设备实际 provisioning、完整物理/逻辑生命周期仍待补齐 | 单端口与聚合接入、同端口多 VLAN、隔离状态测试 |
+| 端口与二层接入 | `Interfaces/*`、`SwitchPort.php` | 已实现单端口/LAG、同组多 VLAN、MTU、真实端口容量和冲突约束。经销商物理分流支持登记、更换、释放及无独立 VLAN 的旧端口转换，配对会保留分流端口。混合用途旧端口、设备实际 provisioning、完整物理/逻辑生命周期仍待补齐 | 单端口与聚合接入、同端口多 VLAN、隔离状态测试 |
 | 核心互联 | `CoreBundle.php`、`CoreLink.php`、`CoreInterface.php` | 已实现 ECMP/L2-LAG/L3-LAG 聚合事务、双端接口、子网/BFD/STP/成本偏好、核心端口预留、旧链路显式归组、双端 SNMP 物理观测和独立流量、旧库闭合迁移及受审批的交换机 JSON 配置计划。独立 LACP/BGP/BFD 观测、厂商原生配置适配/应用/撤回、真实设备验收仍待完成；不从 cost/preference 推断不存在的主备字段 | 核心拓扑迁移、占用/CAS、观测归属、双栈计划、审批绑定、备份和真实目标测试 |
 | IPAM 与 MAC | `IpAddressController.php`、`Layer2AddressController.php`、`MacAddressController.php` | 已实现事务预留/释放、归属检查、IPv6 大整数容量、地址池与已登记l2address迁移；SNMP FDB学习与登记对照现有唯一物理接口/VLAN/成员审阅、短期摘要、冲突拒绝及事务登记。禁用但仍分配的旧地址保留成员/PTR；sFlow学习候选持久化、旧学习历史和OUI数据仍待补齐 | 冲突、回收、双栈、成员可见性和学习数据测试 |
 | 配线架与交叉连接 | `PatchPanel/*`、`PatchPanelPortHistory.php`、文件/LOA 控制器 | 已实现双工、预接线、状态流程、只追加历史、不可变中文 LOA/PDF/HTML 和当前租户附件检查；旧库存/分配快照/附件现有受限离线包、原保存键与内容摘要核对、事务导入、整面板待核对和只读归档。当前附件按实际分配与成员实体绑定，历史仅staff，私有物理附件保留。管理员配线邮件现支持可编辑To/CC/BCC、正文、当前LOA/PDF与授权附件，先预览再明确排队，交接前复核；暂停/关闭成员仍可收到当前分配的拆线/资料通知。生产资料核对与真实SMTP联调仍待完成 | 预留→接线→拆线状态、LOA、附件授权、迁移、通知与备份恢复测试 |
@@ -417,3 +417,5 @@ Quagga 的真实单播会话状态已接入监控。固定私密 bgpd.vty 与本
 Go Linux 发布包增加了 systemd 服务和账号声明。它用专用账号运行前台 Go 进程，监听回环地址，固定私有状态目录，并支持同一发布目录中的 UI。发布流程覆盖停止、离线备份、归档校验、新目录恢复与切换。旧 PHP 安装器、Vagrant 测试环境、旧 Docker 开发环境和 PHP IDE 工具已退役，可从原版提交查阅。 [Go 主机安装](SYSTEMD-INSTALL.md) · [原版树](https://github.com/MoeDove-LLC/IXP-Manager/tree/8161e185b9a155f6b297f1487a2d0c6ed920e27e)
 
 原管理员成员欢迎邮件迁至 Go「成员 → 欢迎邮件」。草稿汇总当前成员、端口和 LAG、VLAN、双栈地址及成员管理员资料。管理员可在当前成员和支持邮箱范围内编辑 To、CC、BCC、主题及正文。排队前绑定预览内容和成员资料，投递与重试前复核当前归属。正文与抄送信息使用加密队列，BCC 使用 SMTP 信封。独立 Go 竞态、备份恢复和 Chromium 测试验证了完整流程，含响应丢失后的同一审阅重放。对应的 PHP 路由、表单、邮件类和模板已退役。 [原版欢迎邮件](https://github.com/MoeDove-LLC/IXP-Manager/blob/8161e185b9a155f6b297f1487a2d0c6ed920e27e/resources/views/customer/emails/welcome-email.blade.php)
+
+「经销商分流」保存唯一的成员接入端口与直属经销商端口配对。管理员及操作员可按现有版本更换或释放配对。右侧端口在配对有效期间保留给经销商，核心候选和成员接入提交复核该占用。关闭成员后物理关系持续保留。旧库转换按 `physicalinterface.fanout_physical_interface_id` 还原配对，保留原成员的多 VLAN 和 LAG。源数据需要证明被动端是独立物理端口、属于该成员的直属经销商且无自身 VLAN 或聚合。孤儿引用、归属冲突和混合用途的旧端口阻止生成导入文件。 [旧库样例](../tools/migrate/example-legacy-fanouts.json)

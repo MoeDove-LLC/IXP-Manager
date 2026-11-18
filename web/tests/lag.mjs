@@ -235,6 +235,43 @@ try {
     .getByRole("dialog")
     .getByRole("button", { name: "取消", exact: true })
     .click();
+  await request(`/resources/members/${b.id}`, {
+    name: b.name, asn: b.asn, status: b.status, type: "reseller", isReseller: true,
+  }, "PUT");
+  await request(`/resources/members/${a.id}`, {
+    name: a.name, asn: a.asn, status: a.status, resellerId: b.id,
+  }, "PUT");
+  const spare = await request("/resources/ports", { name: "Replacement fanout", switchId: s2.id, speed: 10000, status: "active" });
+  await page.goto(`${base}/#reseller-fanouts`);
+  await page.getByRole("heading", { name: "经销商分流", exact: true }).waitFor();
+  await page.locator(".page-heading").getByRole("button", { name: "新增分流关系", exact: true }).click();
+  const fanout = page.getByRole("dialog");
+  const fanoutName = "Browser fanout allocation";
+  await fanout.locator("#field-name").fill(fanoutName);
+  await fanout.locator("#field-memberId").selectOption(a.id);
+  await fanout.locator("#field-peeringPortId").selectOption(ports[0].id);
+  await fanout.locator("#field-fanoutPortId").selectOption(ports[2].id);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "fanout editor must fit 390px viewport");
+  if (process.env.RESELLER_FANOUT_SCREENSHOT) await fanout.screenshot({ path: process.env.RESELLER_FANOUT_SCREENSHOT });
+  await fanout.getByRole("button", { name: "保存", exact: true }).click();
+  await fanout.waitFor({ state: "hidden" });
+  let data = (await request("/resources/reseller-fanouts", undefined, "GET")).items[0];
+  assert.equal(data.memberId, a.id);
+  assert.equal(data.resellerId, b.id);
+  assert.equal(data.peeringPortId, ports[0].id);
+  assert.equal(data.fanoutPortId, ports[2].id);
+  await page.getByRole("button", { name: `编辑 ${fanoutName}`, exact: true }).click();
+  await fanout.locator("#field-fanoutPortId").selectOption(spare.id);
+  await fanout.getByRole("button", { name: "保存", exact: true }).click();
+  await fanout.waitFor({ state: "hidden" });
+  data = (await request("/resources/reseller-fanouts", undefined, "GET")).items[0];
+  assert.equal(data.fanoutPortId, spare.id);
+  await page.getByRole("button", { name: new RegExp(`^(释放分流关系|删除) ${fanoutName}$`) }).click();
+  await page.getByRole("dialog").getByRole("button", { name: /确认释放|确认删除/ }).click();
+  await fanout.waitFor({ state: "hidden" });
+  assert.deepEqual((await request("/resources/reseller-fanouts", undefined, "GET")).items, []);
+  assert.equal((await request(`/resources/connections/${lag.id}`, undefined, "GET")).linkMode, "lag");
+  console.log("PASS browser create, replace and release of reseller fanout in 390px inventory");
   await request("/resources/users", {
     name: "Member A User",
     email: "member@example.test",
@@ -274,6 +311,7 @@ try {
   assert.equal(projection.capacityKnown, true);
   assert.equal(projection.capacityMbps, 10000);
   assert.equal("managementIp" in projection.portDetails[0], false);
+  assert.equal(await page.getByRole("button", { name: "经销商分流", exact: true }).count(), 0);
   console.log(
     "Member portal displays own safe physical labels/capacity without exposing port inventory",
   );

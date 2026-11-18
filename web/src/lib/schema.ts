@@ -277,6 +277,21 @@ const resourcesBase: Resource[] = [
     ],
   },
   {
+    key: "reseller-fanouts",
+    label: "经销商分流",
+    singular: "分流关系",
+    description: "登记成员接入端口与直属经销商端口之间的本地配线关系。",
+    columns: ["name", "memberId", "peeringPortId", "resellerId", "fanoutPortId"],
+    fields: [
+      name,
+      ref("memberId", "接入成员", "members"),
+      ref("resellerId", "直属经销商", "members"),
+      ref("peeringPortId", "成员接入端口（左）", "ports"),
+      ref("fanoutPortId", "经销商端口（右）", "ports"),
+      notes,
+    ],
+  },
+  {
     key: "routers",
     label: "路由服务器",
     singular: "路由服务器",
