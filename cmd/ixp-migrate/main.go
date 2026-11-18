@@ -36,6 +36,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	logoRoot := flags.String("logo-public-root", "", "explicit offline legacy public root containing logos; no URLs or configuration are read")
 	docstoreBundle := flags.Bool("docstore-bundle", false, "write a bounded private legacy Docstore bundle")
 	mailingArchive := flags.Bool("mailing-archive", false, "write a private mailing choice archive without restoring subscriptions")
+	accountArchive := flags.Bool("account-archive", false, "write private user and customer_to_users source evidence without creating accounts or permissions")
 	noteArchive := flags.Bool("note-archive", false, "write a private archive of original notes and note preferences, without restoring grants")
 	auditArchive := flags.Bool("audit-archive", false, "write a private historical archive of legacy log metadata")
 	auditSource := flags.String("audit-source", "legacy-ixp-manager", "label for the source database's legacy log IDs")
@@ -53,19 +54,19 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return errors.New("unexpected positional arguments")
 	}
 	modes := 0
-	for _, enabled := range []bool{*patchBundle, *docstoreBundle, *logoBundle, *noteArchive, *mailingArchive, *auditArchive, *resourcesOnly} {
+	for _, enabled := range []bool{*patchBundle, *docstoreBundle, *logoBundle, *noteArchive, *mailingArchive, *accountArchive, *auditArchive, *resourcesOnly} {
 		if enabled {
 			modes++
 		}
 	}
 	if modes > 1 {
-		return errors.New("patch, Docstore, logo, note, mailing, audit archive and resources-only modes are mutually exclusive")
+		return errors.New("patch, Docstore, logo, note, mailing, account, audit archive and resources-only modes are mutually exclusive")
 	}
 	peerOptions := peerDraftOptions{Enabled: *peerDrafts, LimitSchema: *peerLimitSchema, AsOf: *peerAsOf}
 	if err := peerOptions.validate(); err != nil {
 		return err
 	}
-	if *peerDrafts && (*patchBundle || *docstoreBundle || *logoBundle || *noteArchive || *mailingArchive || *auditArchive) {
+	if *peerDrafts && (*patchBundle || *docstoreBundle || *logoBundle || *noteArchive || *mailingArchive || *accountArchive || *auditArchive) {
 		return errors.New("peer drafts are only available with ordinary inventory or resources-only output")
 	}
 	if *patchRoot != "" && !*patchBundle {
@@ -99,6 +100,12 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	if err = migrate.ValidateNoteArchiveSourceJSON(raw); err != nil {
 		return errors.New("legacy source JSON must be unambiguous valid UTF-8 within structural bounds")
 	}
+	if *accountArchive {
+		var envelope map[string]json.RawMessage
+		if json.Unmarshal(raw, &envelope) != nil || len(envelope) != 1 || envelope["tables"] == nil {
+			return errors.New("account source requires the exact tables envelope")
+		}
+	}
 	r = bytes.NewReader(raw)
 	limited := &io.LimitedReader{R: r, N: maxInput + 1}
 	decoder := json.NewDecoder(limited)
@@ -114,6 +121,20 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	}
 	if limited.N <= 0 {
 		return errors.New("input exceeds 128 MiB")
+	}
+	if *accountArchive {
+		archive, err := buildAccountArchive(source, *sourceTimezone)
+		if err != nil {
+			return err
+		}
+		if *strict {
+			return errors.New("strict account archive refused: every source account requires explicit identity and membership review")
+		}
+		fmt.Fprintln(stderr, "review: account source evidence only; no current accounts or permissions are created; current identity proof and explicit organization mapping are required")
+		for _, finding := range migrate.AccountArchiveReview(archive) {
+			fmt.Fprintf(stderr, "review: %s %s: %s\n", finding.Entity, finding.LegacyID, finding.Code)
+		}
+		return migrate.WriteAccountArchive(*output, *archive)
 	}
 	if *auditArchive {
 		if *output == "" || *output == "-" {
