@@ -8,6 +8,10 @@ view. Administrator and operator automation can use a dedicated
 `contacts:export` API token with an explicit group selector. The endpoint is
 read-only.
 
+The browser and HTTP workflows replace the retired Artisan `contact:export-group`
+command. For automation, use the scoped request below and select members by their
+current Go IDs. [Original Artisan command](https://github.com/MoeDove-LLC/IXP-Manager/blob/8161e185b9a155f6b297f1487a2d0c6ed920e27e/app/Console/Commands/Contact/ExportGroup.php)
+
 The private, read-only endpoint is `GET /api/contact-export`:
 
 | Query | Result |
@@ -34,7 +38,7 @@ member metadata are not included. `cust_status` maps current statuses to the
 legacy labels: `active` → `Normal`, `pending` → `Not Connected`, and `suspended`
 → `Suspended`; an absent/unrecognized status is `Unknown`.
 
-Like `app/Console/Commands/Contact/ExportGroup.php`, eligibility requires
+As in the original command, eligibility requires
 `joinedAt <= today` and an empty `leftAt` or `leftAt >= today`. Both boundaries
 are inclusive. Missing or invalid join dates are excluded; creation time is not
 treated as a join date. Status does not filter otherwise eligible members.
