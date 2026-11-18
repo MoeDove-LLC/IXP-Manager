@@ -1,6 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import {
   CheckCheck,
+  Activity,
   Download,
   FileCode2,
   Plus,
@@ -44,6 +45,7 @@ import { useHashParameters } from "@/lib/hash-route";
 import { RFC2317_MERGE_KIND, RFC2317_MERGE_MAX_BYTES, isRFC2317Metadata, sameRFC2317Metadata, type RFC2317Metadata } from "@/lib/rfc2317";
 
 type Detail = ProvisioningRevision & { config: string; redacted: true };
+const MonitoringConfigurationHealth = lazy(() => import("@/components/MonitoringConfigurationHealth"));
 
 function revisionLabel(kind: string) {
   return kind === RFC2317_MERGE_KIND ? "RFC 2317 父区和子区" : provisioningLabels[kind] ?? kind;
@@ -446,7 +448,7 @@ export default function Provisioning({
         Smokeping 生成的是依赖目标环境的片段，批准后仍须在目标完整配置中校验。
         交换机计划是供目标适配器处理的 JSON，需要另行生成并验证设备原生配置。
       </div>
-      <div className="mb-5 flex gap-2" aria-label="配置工具工作区">
+      <div className="mb-5 flex flex-wrap gap-2" aria-label="配置工具工作区">
         <Button
           variant={section === "revisions" ? "secondary" : "ghost"}
           aria-pressed={section === "revisions"}
@@ -466,6 +468,20 @@ export default function Provisioning({
           <Settings2 />
           生成规则
         </Button>
+        {role === "admin" && (
+          <Button
+            variant={section === "monitoring-health" ? "secondary" : "ghost"}
+            aria-pressed={section === "monitoring-health"}
+            onClick={() => {
+              detailEpoch.current++;
+              setConfirm(null);
+              setSection("monitoring-health");
+            }}
+          >
+            <Activity />
+            监控配置检查
+          </Button>
+        )}
       </div>
       <ErrorNotice message={error} />
       {targetProfile && section === "profiles" && (
@@ -474,7 +490,14 @@ export default function Provisioning({
           <Button variant="outline" size="sm" onClick={() => { location.hash = "provisioning"; }}>查看全部规则</Button>
         </div>
       )}
-      {section === "profiles" ? (
+      {section === "monitoring-health" && role === "admin" ? (
+        <Suspense fallback={<Loading />}>
+          <MonitoringConfigurationHealth onProfile={() => {
+            showProfiles();
+            void load();
+          }} />
+        </Suspense>
+      ) : section === "profiles" ? (
         loading && !profiles.length ? (
           <Loading />
         ) : (

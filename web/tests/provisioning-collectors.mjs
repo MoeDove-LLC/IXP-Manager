@@ -470,6 +470,8 @@ try {
       .count(),
     0,
   );
+  assert.equal(await viewer.getByRole("button", { name: "监控配置检查", exact: true }).count(), 0);
+  assert.equal((await viewerContext.request.get(base + "/api/provisioning/monitoring-health")).status(), 403);
   await go("security");
   await page
     .getByRole("button", { name: "创建 API 令牌", exact: true })
@@ -509,7 +511,45 @@ try {
   console.log(
     "viewer read-only and profile-bound provisioning pull token passed",
   );
+  const monitoringChecks = (await api("/provisioning/monitoring-health")).items;
+  const nagiosObservation = monitoringChecks.find((row) => row.profileId === nagios.id);
+  const smokeObservation = monitoringChecks.find((row) => row.profileId === smoke.id);
+  assert.equal(nagiosObservation.revisionId, newerNagios.id);
+  assert.equal(nagiosObservation.approvalStatus, "current");
+  assert.equal(nagiosObservation.pullStatus, "recent");
+  assert.ok(nagiosObservation.lastPulledAt && nagiosObservation.lastDownloadedAt);
+  assert.equal(smokeObservation.pullStatus, "not-observed");
+  assert.ok(smokeObservation.lastDownloadedAt);
+  assert.ok(!monitoringChecks.some((row) => row.profileId === dns.id));
+  await api(`/resources/provisioning-profiles/${smoke.id}`, {
+    name: "Test Smokeping revised", options: smoke.options, expectedRevision: smoke.revision,
+  }, "PUT");
   await go("provisioning");
+  await page.getByRole("button", { name: "监控配置检查", exact: true }).click();
+  const monitoringPanel = page.getByRole("region", { name: "监控配置检查", exact: true });
+  const nagiosHealth = monitoringPanel.locator(`[data-profile-id="${nagios.id}"]`);
+  const smokeHealth = monitoringPanel.locator(`[data-profile-id="${smoke.id}"]`);
+  await nagiosHealth.getByText("已批准且匹配当前配置", { exact: true }).waitFor();
+  await smokeHealth.getByText("批准版本待更新", { exact: true }).waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "monitoring report must fit 390px viewport");
+  if (process.env.MONITORING_HEALTH_SCREENSHOT) {
+    await monitoringPanel.screenshot({ path: process.env.MONITORING_HEALTH_SCREENSHOT });
+  }
+  // Simulate a rule added by another session while this page still has its old rule list.
+  const added = await create("provisioning-profiles", {
+    name: "New monitoring rule on open page",
+    options: { kind: "nagios", families: [4], vlanId: vlan.id },
+  });
+  await monitoringPanel.getByRole("button", { name: "刷新监控检查", exact: true }).click();
+  await monitoringPanel.locator(`[data-profile-id="${added.id}"]`).getByText("无批准版本", { exact: true }).waitFor();
+  await monitoringPanel.getByRole("link", { name: `查看规则 ${added.name}`, exact: true }).click();
+  await page.getByRole("cell", { name: added.name, exact: true }).waitFor();
+  assert.match(page.url(), /#provisioning\?profileId=/);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  console.log("PASS monitoring report, admin gate, approved drift, separate pull and browser download, and 390px rule link");
+  await go("provisioning");
+  await page.getByRole("button", { name: "生成版本", exact: true }).click();
   await page.locator(`[data-provisioning-id="${newerNagios.id}"]`).click();
   await page.locator("pre code").waitFor();
   await page.screenshot({
