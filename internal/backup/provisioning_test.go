@@ -141,6 +141,9 @@ func makeProvisionBackupSerialFixture(t *testing.T, prune bool, baseline uint32)
 		fixture.plaintext[id] = detail["config"].(string)
 		if kind != "dns-arpa" {
 			client.approve(revision)
+			if response := client.request("GET", "/api/provisioning/"+id+"/config", nil); response.Code != http.StatusOK || response.Body.String() != fixture.plaintext[id] {
+				t.Fatal("fixture could not serve the approved monitoring fragment", response.Code)
+			}
 		}
 		if prune && kind == "nagios" {
 			next := client.call("POST", "/api/provisioning", app.Record{"profileId": profile["id"]})
@@ -252,6 +255,9 @@ func TestProvisioningBackupRestoresEncryptedArtifactsAndSerialCounters(t *testin
 		}
 		if revision.Kind == "dns-arpa" && (revision.Status != "draft" || revision.Validation != "") {
 			t.Fatal("backup fixture invented native DNS validation")
+		}
+		if revision.Kind != "dns-arpa" && (revision.LastDownloadedAt == nil || revision.LastPulledAt != nil) {
+			t.Fatal("backup changed the distinction between manual response and token pull evidence")
 		}
 	}
 	restoredApp, err := app.New(app.Config{DataDir: target})

@@ -623,6 +623,10 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.deployments(w, r, user, session)
 		return
 	}
+	if r.URL.Path == "/api/provisioning/monitoring-health" {
+		a.monitoringDeliveryHealth(w, r, user, session)
+		return
+	}
 	if r.URL.Path == "/api/provisioning" || strings.HasPrefix(r.URL.Path, "/api/provisioning/") {
 		a.provisioning(w, r, user, session)
 		return
