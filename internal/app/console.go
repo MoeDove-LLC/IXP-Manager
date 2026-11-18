@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"reflect"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -16,6 +17,9 @@ import (
 func init() {
 	Schemas["console-servers"] = Schema{"name": textField(true), "locationId": ref("locations", true), "managementIp": {Type: "ip"}, "hostname": textField(false), "rackId": ref("racks", false), "vendorId": ref("vendors", false), "model": textField(false), "serialNumber": textField(false), "active": {Type: "boolean"}, "notes": {Type: "longtext"}, "legacyConsole": textField(false)}
 	Schemas["console-connections"] = Schema{"name": textField(true), "description": textField(false), "consoleServerId": ref("console-servers", true), "memberId": ref("members", true), "port": num(1, 65535, false), "portLabel": textField(false), "baudRate": num(300, 230400, false), "parity": enum("even", "odd", "none"), "stopBits": num(1, 2, false), "flowControl": enum("none", "rts-cts", "xon-xoff"), "autobaud": {Type: "boolean"}, "notes": {Type: "longtext"}, "legacySerial": textField(false)}
+	for _, kind := range []string{"console-servers", "console-connections"} {
+		Schemas[kind]["legacyTimestamps"] = Field{Type: "console-source-timestamps"}
+	}
 }
 func consolePortLabel(r Record) (string, error) {
 	label, present := r["portLabel"]
@@ -90,9 +94,56 @@ func validConsoleProvenance(kind, key, value string) error {
 	}
 	return nil
 }
+
+func consoleTimestampObject(raw any) Record {
+	switch object := raw.(type) {
+	case Record:
+		return object
+	case map[string]any:
+		return Record(object)
+	default:
+		return nil
+	}
+}
+
+func validateConsoleSourceTimestamps(kind string, row Record) error {
+	raw, present := row["legacyTimestamps"]
+	if !present {
+		return nil
+	}
+	fields := consoleTimestampObject(raw)
+	if len(fields) < 2 || len(fields) > 3 {
+		return errors.New("legacy console timestamps require a source ID and at least one source time")
+	}
+	sourceID := str(fields, "sourceId")
+	id, err := strconv.ParseInt(sourceID, 10, 64)
+	if err != nil || id <= 0 || strconv.FormatInt(id, 10) != sourceID || str(row, "id") != "legacy-"+kind+"-"+sourceID {
+		return errors.New("legacy console timestamps must match the imported resource identity")
+	}
+	for field, rawTime := range fields {
+		switch field {
+		case "sourceId":
+		case "createdAt", "updatedAt":
+			if rawTime == nil {
+				continue
+			}
+			value, ok := rawTime.(string)
+			if !ok || consoleinventory.ValidateSourceTimestamp(value) != nil {
+				return fmt.Errorf("invalid legacy console source %s", field)
+			}
+		default:
+			return errors.New("unsupported legacy console timestamp field")
+		}
+	}
+	return nil
+}
+
 func validateConsoleRecord(s *State, kind string, r Record) error {
 	if kind != "console-servers" && kind != "console-connections" {
 		return nil
+	}
+	if err := validateConsoleSourceTimestamps(kind, r); err != nil {
+		return err
 	}
 	name := str(r, "name")
 	if err := consoleinventory.ValidatePortLabel(name); err != nil {
@@ -186,6 +237,16 @@ func guardConsoleMutation(s *State, kind, method string, old, body Record) error
 		}
 	} else if old != nil && old[legacy] != nil {
 		body[legacy] = old[legacy]
+	}
+	previous, hasPrevious := old["legacyTimestamps"]
+	if incoming, supplied := body["legacyTimestamps"]; supplied {
+		fields := consoleTimestampObject(incoming)
+		if !hasPrevious || fields == nil || !reflect.DeepEqual(fields, consoleTimestampObject(previous)) {
+			return errors.New("legacy console timestamps are import-only and read-only")
+		}
+	}
+	if hasPrevious {
+		body["legacyTimestamps"] = previous
 	}
 	if method == "PUT" {
 		keys := []string{"hostname", "managementIp", "rackId", "vendorId", "model", "serialNumber", "active", "notes"}

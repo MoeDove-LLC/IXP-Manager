@@ -23,6 +23,16 @@ is retained in `legacyConsole` when normalization changes it. This is syntax
 validation, not a DNS query. Missing/invalid active state becomes disabled with
 a warning and original evidence; no operational health is inferred.
 
+For both tables, the converter retains `created_at` and `updated_at` under
+`legacyTimestamps`, with the source row ID and the original text. Adapted JSON
+exports can use `created` and `updated`. When an original column and its alias
+are both present, they must agree. SQL timestamps without an offset retain
+their source spelling and precision. RFC 3339 offsets, explicit nulls and the
+MySQL all-zero timestamp are preserved. Missing columns stay absent.
+Invalid values stop conversion with the source table, row and column so the
+export can be corrected. Source times are read-only and are separate from the
+new Go record's creation and update times.
+
 Connections retain description/name, member/server references, the original
 serial port label, baud rate, parity, stop bits, flow control, autobaud and notes.
 `portLabel` is text, not a TCP port number. Leading zeros are significant: `01`

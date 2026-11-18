@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -132,8 +133,8 @@ func TestConsoleConverterOutputAcceptedByAPI(t *testing.T) {
 	source := Record{"tables": Record{
 		"cust":     []Record{{"id": 1, "name": "Source member", "autsys": 64501, "status": 1}},
 		"location": []Record{{"id": 1, "name": "Source DC"}}, "cabinet": []Record{{"id": 1, "name": "Source rack", "locationid": 1}},
-		"console_server":          []Record{{"id": 1, "cabinet_id": 1, "name": "Source console", "hostname": "BÜCHER.example", "active": nil}},
-		"consoleserverconnection": []Record{{"id": 1, "console_server_id": 1, "custid": 1, "description": "Source port", "port": "001", "speed": 230400, "parity": 3, "stopbits": 1, "flowcontrol": 3, "autobaud": nil, "switchid": 99}},
+		"console_server":          []Record{{"id": 1, "cabinet_id": 1, "name": "Source console", "hostname": "BÜCHER.example", "active": nil, "created_at": "2020-10-27 19:20:21.123456", "updated_at": "2024-12-31T18:00:00+08:00"}},
+		"consoleserverconnection": []Record{{"id": 1, "console_server_id": 1, "custid": 1, "description": "Source port", "port": "001", "speed": 230400, "parity": 3, "stopbits": 1, "flowcontrol": 3, "autobaud": nil, "switchid": 99, "created_at": nil, "updated_at": "0000-00-00 00:00:00"}},
 	}}
 	data, err := json.Marshal(source)
 	if err != nil {
@@ -164,14 +165,32 @@ func TestConsoleConverterOutputAcceptedByAPI(t *testing.T) {
 	if str(server, "hostname") != "xn--bcher-kva.example" || server["active"] != false {
 		t.Fatal("converted console identity/activity changed")
 	}
+	serverTimes, ok := server["legacyTimestamps"].(map[string]any)
+	if !ok || serverTimes["sourceId"] != "1" || serverTimes["createdAt"] != "2020-10-27 19:20:21.123456" || serverTimes["updatedAt"] != "2024-12-31T18:00:00+08:00" {
+		t.Fatalf("source timestamps changed: %v", serverTimes)
+	}
+	if _, err := time.Parse(time.RFC3339Nano, str(server, "createdAt")); err != nil {
+		t.Fatalf("import did not create a current identity epoch: %v", server["createdAt"])
+	}
 	conn := c.ok("GET", "/api/resources/console-connections/legacy-console-connections-1", nil)
 	if str(conn, "memberId") != "legacy-members-1" || str(conn, "portLabel") != "001" || number(conn, "baudRate") != 230400 || str(conn, "flowControl") != "xon-xoff" {
 		t.Fatal("converted serial contract changed")
+	}
+	connTimes, ok := conn["legacyTimestamps"].(map[string]any)
+	if created, present := connTimes["createdAt"]; !ok || !present || created != nil || connTimes["sourceId"] != "1" || connTimes["updatedAt"] != "0000-00-00 00:00:00" {
+		t.Fatalf("source null or zero value changed: %v", connTimes)
 	}
 	exported := c.ok("GET", "/api/export", nil)
 	encoded, _ := json.Marshal(exported)
 	if !bytes.Contains(encoded, []byte(`"portLabel":"001"`)) || !bytes.Contains(encoded, []byte(`"legacySerial"`)) {
 		t.Fatal("resource export lost label or source evidence")
+	}
+	groups := exported["resources"].(map[string]any)
+	for kind, want := range map[string]map[string]any{"console-servers": serverTimes, "console-connections": connTimes} {
+		got := groups[kind].([]any)[0].(map[string]any)["legacyTimestamps"]
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("exported %s source timestamps changed: %v", kind, got)
+		}
 	}
 	before := c.a.store.Snapshot()
 	if w := c.request("POST", "/api/import", payload); w.Code != 400 {

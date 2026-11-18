@@ -198,8 +198,10 @@ func (c *converter) consoles() error {
 		if err = c.consoleProvenance(table, r, "legacyConsole", source, out); err != nil {
 			return err
 		}
+		if err = c.consoleTimestamps(table, r, out); err != nil {
+			return err
+		}
 		c.add("console-servers", r, out)
-		c.receiverTimes(table, r)
 		c.resolve(table, r)
 	}
 	seen := map[string]bool{}
@@ -299,8 +301,10 @@ func (c *converter) consoles() error {
 		if err = c.consoleProvenance(table, r, "legacySerial", unknown, out); err != nil {
 			return err
 		}
+		if err = c.consoleTimestamps(table, r, out); err != nil {
+			return err
+		}
 		c.add("console-connections", r, out)
-		c.receiverTimes(table, r)
 		c.resolve(table, r)
 	}
 	return nil

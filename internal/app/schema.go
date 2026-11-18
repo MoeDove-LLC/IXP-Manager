@@ -106,6 +106,10 @@ func validate(s *State, kind string, r Record) error {
 			default:
 				err = fmt.Errorf("must be a typed configuration options object")
 			}
+		case "console-source-timestamps":
+			if consoleTimestampObject(v) == nil {
+				err = fmt.Errorf("must be a source timestamp object")
+			}
 		case "decimal":
 			n, ok := v.(float64)
 			if !ok || math.IsNaN(n) || math.IsInf(n, 0) || n < f.Min || n > f.Max {
