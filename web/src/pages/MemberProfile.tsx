@@ -1,6 +1,14 @@
-import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { Check, Mail, Plus, Save, Trash2, Pencil } from "lucide-react";
-import { api, save } from "@/lib/api";
+import { api, captureSessionContext, save } from "@/lib/api";
 import type { Row } from "@/lib/resources";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +27,7 @@ import {
   message,
 } from "@/components/shared";
 const MemberLogo = lazy(() => import("@/components/MemberLogo"));
+const MemberUsers = lazy(() => import("@/components/MemberUsers"));
 const fields = [
   { key: "name", label: "网络名称", required: true },
   { key: "email", label: "联系邮箱", type: "email" },
@@ -32,10 +41,14 @@ const fields = [
   { key: "vatNumber", label: "税号" },
 ];
 export default function MemberProfile({
+  memberId,
   memberRole,
+  tenantSwitchPending = false,
   onChange,
 }: {
+  memberId?: string;
   memberRole?: string;
+  tenantSwitchPending?: boolean;
   onChange: () => void;
 }) {
   const canEdit = memberRole === "member-admin";
@@ -50,24 +63,56 @@ export default function MemberProfile({
     [form, setForm] = useState<Record<string, string>>({}),
     [formError, setFormError] = useState(""),
     [deleting, setDeleting] = useState<Row | null>(null);
-  const load = async () => {
+  const loadSequence = useRef(0),
+    pendingLoad = useRef<AbortController | null>(null),
+    profileContext = useRef<() => boolean>(() => false);
+  const load = useCallback(async () => {
+    pendingLoad.current?.abort();
+    const controller = new AbortController();
+    pendingLoad.current = controller;
+    const request = ++loadSequence.current,
+      contextCurrent = captureSessionContext();
+    const current = () =>
+      !controller.signal.aborted &&
+      request === loadSequence.current &&
+      contextCurrent();
     setLoading(true);
+    setError("");
     try {
+      if (!memberId) throw new Error("当前账号尚未选定成员组织。");
       const [p, c] = await Promise.all([
-        api<Record<string, unknown>>("/member/profile"),
-        api<{ items: Row[] }>("/member/contacts"),
+        api<Record<string, unknown>>("/member/profile", {
+          signal: controller.signal,
+          cache: "no-store",
+        }),
+        api<{ items: Row[] }>("/member/contacts", {
+          signal: controller.signal,
+          cache: "no-store",
+        }),
       ]);
+      if (!current()) return;
+      if (
+        p.id !== memberId ||
+        !Array.isArray(c.items) ||
+        c.items.some((contact) => contact.memberId !== memberId)
+      )
+        throw new Error("资料与当前成员组织不一致，请重新加载。");
+      profileContext.current = contextCurrent;
       setProfile(p);
       setContacts(c.items);
     } catch (e) {
-      setError(message(e));
+      if (current()) setError(message(e));
     } finally {
-      setLoading(false);
+      if (current()) setLoading(false);
     }
-  };
+  }, [memberId]);
   useEffect(() => {
     void load();
-  }, []);
+    return () => {
+      loadSequence.current++;
+      pendingLoad.current?.abort();
+    };
+  }, [load]);
   const update = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -157,7 +202,7 @@ export default function MemberProfile({
       {loading && !profile ? (
         <Loading />
       ) : (
-        profile && (
+        profile && profile.id === memberId && profileContext.current() && (
           <>
             <div className="mb-6">
               <Suspense fallback={<Loading />}>
@@ -201,6 +246,15 @@ export default function MemberProfile({
                 </form>
               </CardContent>
             </Card>
+            {canEdit && !loading && !tenantSwitchPending && (
+              <Suspense fallback={<Loading />}>
+                <MemberUsers
+                  key={memberId}
+                  memberId={String(profile.id)}
+                  memberName={String(profile.name ?? "当前组织")}
+                />
+              </Suspense>
+            )}
             <Card className="mt-6 overflow-hidden">
               <CardHeader className="flex-row items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
@@ -272,6 +326,11 @@ export default function MemberProfile({
             </Card>
           </>
         )
+      )}
+      {!loading && error && (
+        <Button className="mt-4" variant="outline" onClick={() => void load()}>
+          重新加载网络资料
+        </Button>
       )}
       <Dialog open={open} onOpenChange={(v) => !busy && setOpen(v)}>
         <DialogContent>

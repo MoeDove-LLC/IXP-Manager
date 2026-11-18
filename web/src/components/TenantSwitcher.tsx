@@ -6,6 +6,7 @@ type Membership = { id: string; name: string; role: "member" | "member-admin" };
 export default function TenantSwitcher({
   session,
   onSwitch,
+  onSwitchPending,
   version,
   onLabel,
 }: {
@@ -13,6 +14,7 @@ export default function TenantSwitcher({
   version: number;
   onLabel: (label: string) => void;
   onSwitch: (session: Session) => void;
+  onSwitchPending: (pending: boolean) => void;
 }) {
   const [items, setItems] = useState<Membership[]>([]),
     [busy, setBusy] = useState(false),
@@ -36,6 +38,7 @@ export default function TenantSwitcher({
   const select = async (memberId: string) => {
     setBusy(true);
     setError("");
+    onSwitchPending(true);
     try {
       const next = await save<Session>("/memberships/select", { memberId });
       onLabel(items.find((m) => m.id === next.user.memberId)?.name ?? "");
@@ -44,6 +47,7 @@ export default function TenantSwitcher({
       setError(message(e));
     } finally {
       setBusy(false);
+      onSwitchPending(false);
     }
   };
   return (

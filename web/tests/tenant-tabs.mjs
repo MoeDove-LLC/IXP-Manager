@@ -83,6 +83,19 @@ try {
     memberIds: [a.id, b.id],
     memberAdminIds: [a.id, b.id],
   });
+  const aColleague = "A-only roster colleague";
+  const aEmail = `roster-a-${Date.now()}@example.test`;
+  const bColleague = "B-only roster colleague";
+  const bEmail = `roster-b-tenant-support-${"long-".repeat(5)}${Date.now()}@example.test`;
+  for (const [member, name, email] of [[a, aColleague, aEmail], [b, bColleague, bEmail]]) {
+    await api(admin, "/resources/users", {
+      name,
+      email,
+      password,
+      role: "member",
+      memberId: member.id,
+    });
+  }
   const context = await browser.newContext();
   await context.addInitScript(() => {
     window.__sessionSignals = [];
@@ -100,14 +113,122 @@ try {
   two.on("pageerror", (e) => errors.push(e.message));
   await two.goto(base + "/#member-profile");
   await two.getByRole("heading", { name: a.name, exact: true }).waitFor();
+  const roster = (page) => page.getByRole("region", { name: "组织账号", exact: true });
+  const refreshRoster = (page) => roster(page).getByRole("button", { name: "刷新名册", exact: true });
+  await roster(two).getByText(aColleague, { exact: true }).waitFor();
+  assert.equal(await roster(two).getByText(bColleague, { exact: true }).count(), 0);
+  const capturedRoster = Promise.withResolvers();
+  await two.route("**/api/member/users", async (route) => {
+    try {
+      const response = await route.fetch({ timeout: 10000 });
+      const body = await response.json();
+      assert.equal(response.status(), 200);
+      assert.equal(body.memberId, a.id);
+      assert.ok(body.items.some((item) => item.email === aEmail));
+      capturedRoster.resolve({ route, response });
+    } catch (error) {
+      capturedRoster.reject(error);
+      await route.abort();
+    }
+  }, { times: 1 });
+  const refreshStarted = two.waitForRequest("**/api/member/users", { timeout: 10000 });
+  await refreshRoster(two).click();
+  await refreshStarted;
+  const delayedRoster = await capturedRoster.promise;
+  assert.equal(await roster(two).getByText(aColleague, { exact: true }).count(), 0);
   await two.getByLabel("电话", { exact: true }).fill("UNSAVED A DRAFT");
   const old = await api(two, "/session");
   const delayedSchema = [];
   await two.route("**/api/schema", (route) => {
     delayedSchema.push(route);
   });
-  await one.getByLabel("当前成员网络", { exact: true }).selectOption(b.id);
+  await one.goto(base + "/#member-profile");
+  await roster(one).getByText(aColleague, { exact: true }).waitFor();
+  await one.getByLabel("电话", { exact: true }).fill("DRAFT DURING FAILED SWITCH");
+  const selection = one.getByLabel("当前成员网络", { exact: true });
+  const refusedSwitch = "组织切换未完成（测试）";
+  await one.route("**/api/memberships/select", (route) => route.fulfill({
+    status: 409,
+    json: { error: refusedSwitch },
+  }), { times: 1 });
+  await selection.selectOption(b.id);
+  await one.getByRole("alert").filter({ hasText: refusedSwitch }).waitFor();
+  await roster(one).getByText(aColleague, { exact: true }).waitFor();
+  assert.equal(await one.getByLabel("电话", { exact: true }).inputValue(), "DRAFT DURING FAILED SWITCH");
+
+  const completedSwitch = Promise.withResolvers();
+  await one.route("**/api/memberships/select", async (route) => {
+    try {
+      const response = await route.fetch({ timeout: 10000 });
+      assert.equal(response.status(), 200);
+      assert.equal((await response.json()).user.memberId, b.id);
+      completedSwitch.resolve({ route, response });
+    } catch (error) {
+      completedSwitch.reject(error);
+      await route.abort();
+    }
+  }, { times: 1 });
+  const switchStarted = one.waitForRequest("**/api/memberships/select", { timeout: 10000 });
+  await selection.selectOption(b.id);
+  await switchStarted;
+  const switched = await completedSwitch.promise;
+  await one.getByText("正在切换工作空间…", { exact: true }).waitFor();
+  assert.equal(await roster(one).count(), 0, "pending switch must hide the previous roster");
+  await switched.route.fulfill({ response: switched.response });
   await two.getByRole("heading", { name: b.name, exact: true }).waitFor();
+  await roster(two).getByText(bColleague, { exact: true }).waitFor();
+  try {
+    await delayedRoster.route.fulfill({ response: delayedRoster.response });
+  } catch (error) {
+    assert.equal(delayedRoster.route.request().failure()?.errorText, "net::ERR_ABORTED", String(error));
+  }
+  await two.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  assert.equal(await two.getByText(aColleague, { exact: true }).count(), 0);
+  assert.equal(await roster(two).getByText(bEmail, { exact: true }).count(), 1);
+  const unavailable = "名册验证期间暂时不可用";
+  await two.route("**/api/member/users", (route) => route.fulfill({
+    status: 503,
+    json: { error: unavailable },
+  }), { times: 1 });
+  await refreshRoster(two).click();
+  await roster(two).getByRole("alert").filter({ hasText: unavailable }).waitFor();
+  assert.equal(await roster(two).getByText(bColleague, { exact: true }).count(), 0);
+  await refreshRoster(two).click();
+  await roster(two).getByText(bColleague, { exact: true }).waitFor();
+
+  const mobile = await context.newPage();
+  await mobile.setViewportSize({ width: 390, height: 844 });
+  mobile.on("pageerror", (e) => errors.push(e.message));
+  await mobile.goto(base + "/#member-profile");
+  await roster(mobile).getByText(bEmail, { exact: true }).waitFor();
+  assert.ok(await mobile.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "roster must fit 390px viewport");
+  if (process.env.MEMBER_ROSTER_SCREENSHOT) {
+    await roster(mobile).screenshot({ path: process.env.MEMBER_ROSTER_SCREENSHOT });
+  }
+  await roster(mobile).getByRole("link", { name: "邀请成员", exact: true }).click();
+  await mobile.getByRole("heading", { name: "成员邀请", exact: true }).waitFor();
+  await mobile.close();
+
+  const ordinary = await browser.newContext();
+  try {
+    const login = await ordinary.request.post(base + "/api/login", { data: { email: aEmail, password } });
+    assert.equal(login.status(), 200);
+    assert.equal((await ordinary.request.get(base + "/api/member/users")).status(), 403);
+    const ordinaryPage = await ordinary.newPage();
+    ordinaryPage.on("pageerror", (e) => errors.push(e.message));
+    let rosterRequests = 0;
+    ordinaryPage.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/api/member/users") rosterRequests++;
+    });
+    await ordinaryPage.goto(base + "/#member-profile");
+    await ordinaryPage.getByRole("heading", { name: a.name, exact: true }).waitFor();
+    assert.equal(await roster(ordinaryPage).count(), 0);
+    assert.equal(rosterRequests, 0);
+  } finally {
+    await ordinary.close();
+  }
+  console.log("PASS roster isolation while switching, stale response rejection, retry after failed refresh, ordinary member denial, mobile layout and invitation link");
   assert.equal(
     await two.getByLabel("当前成员网络", { exact: true }).inputValue(),
     b.id,

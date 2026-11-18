@@ -202,6 +202,10 @@ func (a *App) memberships(w http.ResponseWriter, r *http.Request, user Record, s
 var memberEditable = []string{"name", "email", "website", "phone", "address", "city", "country", "postalCode", "registrationNumber", "vatNumber"}
 
 func (a *App) memberService(w http.ResponseWriter, r *http.Request, user Record, session Session) {
+	if r.URL.Path == "/api/member/users" {
+		a.memberUserRoster(w, r, session)
+		return
+	}
 	if session.API || str(user, "role") != "member" {
 		problem(w, 403, "member browser account required")
 		return

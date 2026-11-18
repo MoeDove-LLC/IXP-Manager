@@ -441,6 +441,7 @@ export default function App() {
     [navSearch, setNavSearch] = useState(""),
     [globalSearchOpen, setGlobalSearchOpen] = useState(false),
     [viewVersion, setViewVersion] = useState(0),
+    [pendingMemberSwitches, setPendingMemberSwitches] = useState(0),
     [tenantName, setTenantName] = useState("");
   useEffect(() => {
     setGlobalSearchOpen(false);
@@ -751,6 +752,9 @@ export default function App() {
             session={session}
             version={version}
             onLabel={setTenantName}
+            onSwitchPending={(pending) =>
+              setPendingMemberSwitches((count) => count + (pending ? 1 : -1))
+            }
             onSwitch={(s) => {
               setCSRF(s.csrfToken);
               notifySessionContext();
@@ -942,7 +946,9 @@ export default function App() {
             <Policy role={session.user.role} />
           ) : page === "member-profile" ? (
             <MemberProfile
+              memberId={session.user.memberId}
               memberRole={session.user.memberRole}
+              tenantSwitchPending={pendingMemberSwitches > 0}
               onChange={changed}
             />
           ) : page === "deployments" ? (
