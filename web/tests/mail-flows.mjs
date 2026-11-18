@@ -38,7 +38,7 @@ const smtp = net.createServer((socket) => {
   let buffer = "",
     data = false,
     lines = [],
-    recipient = "";
+    recipients = [];
   socket.on("data", (chunk) => {
     buffer += chunk;
     let newline;
@@ -55,7 +55,9 @@ const smtp = net.createServer((socket) => {
             .join("\r\n\r\n")
             .replace(/\s/g, "");
           smtpMessages.push({
-            to: recipient,
+            to: recipients[0],
+            recipients: [...recipients],
+            raw,
             text: Buffer.from(encoded, "base64").toString("utf8"),
           });
           lines = [];
@@ -64,9 +66,13 @@ const smtp = net.createServer((socket) => {
         continue;
       }
       if (/^(EHLO|HELO)/i.test(line)) socket.write("250 isolated.test\r\n");
-      else if (/^MAIL FROM:/i.test(line)) socket.write("250 sender ok\r\n");
+      else if (/^MAIL FROM:/i.test(line)) {
+        recipients = [];
+        socket.write("250 sender ok\r\n");
+      }
       else if (/^RCPT TO:/i.test(line)) {
-        recipient = line.match(/<([^>]+)>/)?.[1] ?? "";
+        const recipient = line.match(/<([^>]+)>/)?.[1] ?? "";
+        if (!rejected.has(recipient)) recipients.push(recipient);
         socket.write(
           rejected.has(recipient)
             ? "550 fixture rejects this recipient\r\n"
@@ -236,6 +242,70 @@ const createInvite = async (page, email, memberId) => {
   await page.getByLabel("当前密码", { exact: true }).fill(password);
   await page.getByRole("button", { name: "发送成员邀请", exact: true }).click();
   await page.getByRole("dialog").waitFor({ state: "hidden" });
+};
+
+const sendMemberWelcome = async (page) => {
+  const memberName = "Welcome QA Network";
+  const noc = "welcome-ops@example.test";
+  const account = "welcome-account@example.test";
+  const support = "welcome-copy@example.test";
+  const settings = await json(page, "/settings");
+  await json(page, "/settings", { ...settings, supportEmail: support }, "PUT");
+  const member = await json(page, "/resources/members", {
+    name: memberName, asn: 64515, status: "active", nocEmail: noc,
+  });
+  await json(page, "/resources/users", {
+    name: "Welcome member administrator", email: account, password,
+    role: "member", memberId: member.id, memberAdminIds: [member.id],
+  });
+  const location = await json(page, "/resources/locations", { name: "Welcome fixture DC" });
+  const sw = await json(page, "/resources/switches", { name: "welcome-fixture-sw", locationId: location.id });
+  const ports = [];
+  for (const name of ["fixture-eth1", "fixture-eth2"]) {
+    ports.push(await json(page, "/resources/ports", { name, status: "active", speed: 10000, switchId: sw.id }));
+  }
+  const vlan = await json(page, "/resources/vlans", {
+    name: "Welcome fixture peering", tag: 125, ipv4Prefix: "192.0.2.0/24", ipv6Prefix: "2001:db8::/64",
+  });
+  await json(page, "/resources/connections", {
+    name: "Welcome fixture uplink", linkMode: "lag", portIds: ports.map(port => port.id),
+    memberId: member.id, vlanId: vlan.id, ipv4: "192.0.2.11", ipv6: "2001:db8::11", status: "active",
+  });
+  await go(page, "members");
+  await page.getByRole("button", { name: `欢迎邮件 ${memberName}`, exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: /欢迎邮件.*Welcome QA Network/ });
+  const text = dialog.getByLabel("纯文本正文", { exact: true });
+  await text.waitFor();
+  const original = await text.inputValue();
+  assert.ok(original.includes("fixture-eth1") && original.includes("fixture-eth2") && original.includes("192.0.2.11") && original.includes("2001:db8::11"));
+  const changed = original + "\nReviewed handoff from isolated Chromium.";
+  await text.fill(changed);
+  await dialog.getByLabel("邮件主题", { exact: true }).fill("Reviewed welcome fixture");
+  await dialog.getByRole("button", { name: "预览欢迎邮件", exact: true }).click();
+  const confirm = dialog.getByRole("button", { name: "确认排队", exact: true });
+  await confirm.waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "welcome review must fit 390px viewport");
+  if (process.env.MEMBER_WELCOME_SCREENSHOT) await dialog.screenshot({ path: process.env.MEMBER_WELCOME_SCREENSHOT });
+  assert.ok(!smtpMessages.some(message => message.to === noc), "preview must not send mail");
+  await page.route(`**/api/members/${member.id}/welcome-email/queue`, async route => {
+    const result = await route.fetch();
+    assert.equal(result.status(), 201, "the real server must queue before the response is lost");
+    await route.abort("failed");
+  }, { times: 1 });
+  await confirm.click();
+  await dialog.getByRole("button", { name: "重试本次确认", exact: true }).click();
+  await dialog.getByRole("region", { name: "欢迎邮件排队回执", exact: true }).waitFor();
+  const envelope = await until(() => smtpMessages.find(message => message.to === noc));
+  assert.deepEqual(new Set(envelope.recipients), new Set([noc, account, support]));
+  assert.match(envelope.raw, /^Subject: Reviewed welcome fixture$/m);
+  assert.ok(!envelope.raw.includes(support) && !/^Bcc:/im.test(envelope.raw), "BCC must remain only in the SMTP envelope");
+  const part = envelope.raw.split("Content-Type: text/plain; charset=UTF-8\r\n\r\n")[1].split("\r\n--")[0];
+  assert.equal(Buffer.from(part.replace(/\s/g, ""), "base64").toString("utf8"), changed);
+  assert.equal((await json(page, "/notifications")).items.filter(item => item.to === noc).length, 1);
+  assert.equal(smtpMessages.filter(message => message.to === noc).length, 1);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  console.log("PASS reviewed member welcome mail, safe replay after a lost response, real SMTP, dual-stack LAG handoff and 390px preview");
 };
 
 const checkSchedulerHealth = async (page) => {
@@ -443,6 +513,7 @@ try {
       asn: 64514,
       status: "active",
     });
+  await sendMemberWelcome(page);
   await json(page, "/resources/users", {
     name: "Existing Member",
     email: "existing@example.test",

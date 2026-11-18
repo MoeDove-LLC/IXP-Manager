@@ -18,7 +18,7 @@ import {
   RefreshCw,
   KeyRound,
 } from "lucide-react";
-import { api, save, APIError, resourceMutation } from "@/lib/api";
+import { api, save, APIError, captureSessionContext, resourceMutation } from "@/lib/api";
 import { resourceForm, withoutPasswords } from "@/lib/resource-conflicts";
 import { singleRouterFamily } from "@/lib/router-platforms";
 import type { ResourceConflictState } from "@/components/ResourceConflict";
@@ -48,6 +48,7 @@ import {
 } from "@/components/shared";
 
 const MemberLogo = lazy(() => import("@/components/MemberLogo"));
+const MemberWelcomeEmail = lazy(() => import("@/components/MemberWelcomeEmail"));
 const PeerCredentials = lazy(() => import("@/components/PeerCredentials"));
 const PeerReadiness = lazy(() => import("@/components/PeerReadiness"));
 const ResourceConflict = lazy(() => import("@/components/ResourceConflict"));
@@ -271,6 +272,10 @@ export default function Resources({
       : "";
   const isConsole = ["console-servers", "console-connections"].includes(kind);
   const [logoMember, setLogoMember] = useState<Row | null>(null);
+  const [welcomeMember, setWelcomeMember] = useState<{
+    member: Row;
+    contextCurrent: () => boolean;
+  } | null>(null);
   const [rows, setRows] = useState<Row[]>([]),
     [refs, setRefs] = useState<Record<string, Row[]>>({}),
     [loading, setLoading] = useState(true),
@@ -307,6 +312,7 @@ export default function Resources({
       deploymentRequired: boolean;
     } | null>(null);
   const conflictRequest = useRef(0);
+  useEffect(() => { setWelcomeMember(null); }, [kind, role, targetId]);
   useEffect(() => {
     if (targetId) setSearch("");
   }, [targetId]);
@@ -969,6 +975,15 @@ export default function Resources({
                             >
                               查看成员 Logo
                             </button>
+                            {role === "admin" && (
+                              <button
+                                className="ml-3 text-xs text-primary hover:underline"
+                                aria-label={`欢迎邮件 ${r.name}`}
+                                onClick={() => setWelcomeMember({ member: r, contextCurrent: captureSessionContext() })}
+                              >
+                                欢迎邮件
+                              </button>
+                            )}
                           </div>
                         ) : kind === "console-servers" &&
                           k === "connectionCount" ? (
@@ -1070,6 +1085,17 @@ export default function Resources({
           </div>
         )}
       </Card>
+      {kind === "members" && role === "admin" && welcomeMember?.contextCurrent() && (
+        <Suspense fallback={<Loading />}>
+          <MemberWelcomeEmail
+            key={welcomeMember.member.id}
+            memberId={welcomeMember.member.id}
+            name={String(welcomeMember.member.name ?? "当前成员")}
+            intentCurrent={welcomeMember.contextCurrent}
+            onClose={() => setWelcomeMember(null)}
+          />
+        </Suspense>
+      )}
       <Dialog
         open={!!logoMember}
         onOpenChange={(v) => {
