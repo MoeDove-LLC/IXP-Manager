@@ -293,6 +293,10 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		problem(w, 403, "invalid CSRF token")
 		return
 	}
+	if memberAccountDetached(user) && !(r.URL.Path == "/api/session" && r.Method == http.MethodGet) && !(r.URL.Path == "/api/logout" && r.Method == http.MethodPost) {
+		problem(w, http.StatusForbidden, "this account must accept a member invitation to access the workspace")
+		return
+	}
 	// Search enforces each included domain's current read scope itself.
 	if r.URL.Path == "/api/search" {
 		a.search(w, r, user, session)
@@ -745,7 +749,7 @@ func (a *App) resources(w http.ResponseWriter, r *http.Request, user Record, ses
 			problem(w, 400, "request must be a JSON object")
 			return
 		}
-		for _, key := range []string{"passwordHash", "id", "createdAt", "updatedAt", "ownershipSince", "bindingSince"} {
+		for _, key := range []string{"passwordHash", "id", "createdAt", "updatedAt", "ownershipSince", "bindingSince", membershipDetachedField} {
 			if _, ok := body[key]; ok {
 				problem(w, 400, "server-managed field: "+key)
 				return
@@ -935,6 +939,9 @@ func (a *App) resources(w http.ResponseWriter, r *http.Request, user Record, ses
 			body["createdAt"] = old["createdAt"]
 			if kind == "users" {
 				body["passwordHash"] = old["passwordHash"]
+				if memberAccountDetached(old) && str(body, "role") == "member" && len(membershipIDs(body)) == 0 {
+					body[membershipDetachedField] = true
+				}
 			}
 		} else {
 			id = token(16)

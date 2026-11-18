@@ -87,14 +87,15 @@ try {
   const aEmail = `roster-a-${Date.now()}@example.test`;
   const bColleague = "B-only roster colleague";
   const bEmail = `roster-b-tenant-support-${"long-".repeat(5)}${Date.now()}@example.test`;
+  const colleagues = [];
   for (const [member, name, email] of [[a, aColleague, aEmail], [b, bColleague, bEmail]]) {
-    await api(admin, "/resources/users", {
+    colleagues.push(await api(admin, "/resources/users", {
       name,
       email,
       password,
       role: "member",
       memberId: member.id,
-    });
+    }));
   }
   const context = await browser.newContext();
   await context.addInitScript(() => {
@@ -270,6 +271,60 @@ try {
     .fill("A updated with returned CSRF");
   await one.getByRole("button", { name: "保存网络资料", exact: true }).click();
   await one.getByText("网络资料已更新。", { exact: true }).waitFor();
+  const removeMember = (name) => roster(one).getByRole("button", {
+    name: `移出组织 ${name}`, exact: true,
+  });
+  const removal = one.getByRole("dialog", { name: "移出当前组织", exact: true });
+  const confirmRemoval = removal.getByRole("button", { name: "确认移出组织", exact: true });
+  await removeMember("Two-tab user").click();
+  await removal.getByText(/最后一位有效成员管理员/).waitFor();
+  assert.equal(await confirmRemoval.isDisabled(), true);
+  await removal.getByRole("button", { name: "取消", exact: true }).click();
+
+  await one.setViewportSize({ width: 390, height: 844 });
+  await removeMember(aColleague).click();
+  await removal.getByText(a.name, { exact: true }).waitFor();
+  await removal.getByText(aEmail, { exact: true }).waitFor();
+  assert.equal(await confirmRemoval.isEnabled(), true);
+  await removal.getByText(/最后一条组织关系/).waitFor();
+  assert.ok(await one.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "removal must fit 390px viewport");
+  if (process.env.MEMBER_REMOVAL_SCREENSHOT) {
+    await removal.screenshot({ path: process.env.MEMBER_REMOVAL_SCREENSHOT });
+  }
+  const renamed = "Organization colleague after review";
+  await api(admin, `/resources/users/${colleagues[0].id}`, {
+    name: renamed, email: aEmail, role: "member", memberId: a.id,
+  }, "PUT");
+  await confirmRemoval.click();
+  await removal.getByRole("alert").filter({ hasText: /关系或权限已变化/ }).waitFor();
+  assert.equal(await confirmRemoval.isDisabled(), true);
+  await removal.getByRole("button", { name: "重新读取移除预览", exact: true }).click();
+  await removal.getByText(renamed, { exact: true }).waitFor();
+
+  const target = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  try {
+    const signIn = () => target.request.post(base + "/api/login", { data: { email: aEmail, password } });
+    assert.equal((await signIn()).status(), 200);
+    assert.equal((await target.request.get(base + "/api/member/profile")).status(), 200);
+    await confirmRemoval.click();
+    await removal.waitFor({ state: "hidden" });
+    await roster(one).getByText("Two-tab user", { exact: true }).waitFor();
+    assert.equal(await roster(one).getByText(aEmail, { exact: true }).count(), 0);
+    assert.equal((await target.request.get(base + "/api/session")).status(), 401);
+    assert.equal((await signIn()).status(), 200);
+    assert.equal((await target.request.get(base + "/api/member/profile")).status(), 403);
+    const targetPage = await target.newPage();
+    targetPage.on("pageerror", (e) => errors.push(e.message));
+    await targetPage.goto(base + "/#member-profile");
+    await targetPage.getByRole("heading", { name: "当前账号没有组织", exact: true }).waitFor();
+    assert.equal(await roster(targetPage).count(), 0);
+    await targetPage.getByRole("button", { name: "退出登录", exact: true }).click();
+    await targetPage.getByLabel("邮箱地址").waitFor();
+  } finally {
+    await target.close();
+  }
+  await one.setViewportSize({ width: 1280, height: 720 });
+  console.log("PASS final administrator guard, 390px removal review, real stale preview rejection, one confirmed removal and restricted sign-in with the same account");
   const signals = await two.evaluate(() => window.__sessionSignals);
   assert.ok(signals.length > 0);
   assert.ok(

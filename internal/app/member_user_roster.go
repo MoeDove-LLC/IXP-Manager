@@ -47,17 +47,13 @@ func (a *App) readMemberUserRoster(cookie string, session Session) ([]memberUser
 	a.store.mu.RLock()
 	defer a.store.mu.RUnlock()
 	state := &a.store.state
-	actor := find(state, "users", session.UserID)
-	if a.store.closed || actor == nil || state.Security[session.UserID].Generation != session.Generation ||
-		(session.UserCreatedAt != "" && str(actor, "createdAt") != session.UserCreatedAt) ||
-		!rememberedSessionCurrent(state, session, time.Now()) || !a.memberRosterSessionCurrent(cookie, session) {
+	if a.store.closed || !a.memberRosterSessionCurrent(cookie, session) {
 		return nil, http.StatusUnauthorized
 	}
-	memberID := session.MemberID
-	if str(actor, "role") != "member" || memberID == "" || !contains(membershipIDs(actor), memberID) ||
-		!memberAdministrator(actor, memberID) || str(find(state, "members", memberID), "status") != "active" {
-		return nil, http.StatusForbidden
+	if _, status := memberRosterAuthority(state, session); status != http.StatusOK {
+		return nil, status
 	}
+	memberID := session.MemberID
 
 	items := []memberUserRosterItem{}
 	for _, row := range state.Resources["users"] {
@@ -87,9 +83,29 @@ func (a *App) readMemberUserRoster(cookie string, session Session) ([]memberUser
 	return items, http.StatusOK
 }
 
+func memberRosterAuthority(state *State, session Session) (Record, int) {
+	actor := find(state, "users", session.UserID)
+	if actor == nil || state.Security[session.UserID].Generation != session.Generation ||
+		(session.UserCreatedAt != "" && str(actor, "createdAt") != session.UserCreatedAt) ||
+		!rememberedSessionCurrent(state, session, time.Now()) {
+		return nil, http.StatusUnauthorized
+	}
+	memberID := session.MemberID
+	member := find(state, "members", memberID)
+	if str(actor, "role") != "member" || memberID == "" || !contains(membershipIDs(actor), memberID) ||
+		!memberAdministrator(actor, memberID) || str(member, "status") != "active" {
+		return nil, http.StatusForbidden
+	}
+	return member, http.StatusOK
+}
+
 func (a *App) memberRosterSessionCurrent(cookie string, session Session) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return a.memberRosterSessionCurrentLocked(cookie, session)
+}
+
+func (a *App) memberRosterSessionCurrentLocked(cookie string, session Session) bool {
 	current, ok := a.sessions[cookie]
 	return ok && current.ID == session.ID && current.UserID == session.UserID && current.Generation == session.Generation &&
 		current.MemberID == session.MemberID && current.CSRF == session.CSRF &&

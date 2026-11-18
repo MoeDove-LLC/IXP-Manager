@@ -229,6 +229,10 @@ func invalidateSecurity(s *State, id string) {
 func (a *App) revokeSessions(id, exceptCookie string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.revokeSessionsLocked(id, exceptCookie)
+}
+
+func (a *App) revokeSessionsLocked(id, exceptCookie string) {
 	for key, session := range a.sessions {
 		if session.UserID == id && key != exceptCookie {
 			delete(a.sessions, key)

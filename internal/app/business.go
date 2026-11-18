@@ -73,6 +73,13 @@ func withMember(user Record, memberID string) Record {
 	}
 	return result
 }
+
+const membershipDetachedField = "membershipDetached"
+
+func memberAccountDetached(user Record) bool {
+	return str(user, "role") == "member" && user[membershipDetachedField] == true
+}
+
 func validateBusiness(s *State, kind string, r Record) error {
 	if kind == "peers" {
 		if err := validateOriginBindings(r); err != nil {
@@ -84,7 +91,10 @@ func validateBusiness(s *State, kind string, r Record) error {
 		if legacy := str(r, "memberId"); legacy != "" && !slices.Contains(ids, legacy) {
 			return fmt.Errorf("default memberId must belong to memberIds")
 		}
-		if str(r, "role") == "member" && len(ids) == 0 {
+		if value, marked := r[membershipDetachedField]; marked && (value != true || !memberAccountDetached(r) || len(ids) != 0 || str(r, "memberId") != "") {
+			return fmt.Errorf("detached accounts require an empty member relationship")
+		}
+		if str(r, "role") == "member" && len(ids) == 0 && !memberAccountDetached(r) {
 			return fmt.Errorf("member account requires at least one membership")
 		}
 		values, _ := r["memberAdminIds"].([]any)
@@ -204,6 +214,10 @@ var memberEditable = []string{"name", "email", "website", "phone", "address", "c
 func (a *App) memberService(w http.ResponseWriter, r *http.Request, user Record, session Session) {
 	if r.URL.Path == "/api/member/users" {
 		a.memberUserRoster(w, r, session)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, "/api/member/users/") {
+		a.memberUserRemoval(w, r, session)
 		return
 	}
 	if session.API || str(user, "role") != "member" {

@@ -252,6 +252,11 @@ func cloneState(s State) State {
 func (s *Store) Update(fn func(*State) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.updateLocked(fn)
+}
+
+// updateLocked commits a transaction while its caller holds the Store write lock.
+func (s *Store) updateLocked(fn func(*State) error) error {
 	if s.closed {
 		return errors.New("data store is closed")
 	}

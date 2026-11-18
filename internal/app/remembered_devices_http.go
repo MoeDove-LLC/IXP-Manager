@@ -163,6 +163,44 @@ func (a *App) rememberedDevicesRoutes(w http.ResponseWriter, r *http.Request, us
 	return true
 }
 func (a *App) logoutSession(w http.ResponseWriter, r *http.Request, user Record, session Session) {
+	cookie, err := r.Cookie("moedove_session")
+	if err != nil {
+		problem(w, 403, "account authority changed; sign in again")
+		return
+	}
+	if memberAccountDetached(user) {
+		if !a.logoutDetachedSession(cookie.Value, user, session) {
+			problem(w, 403, "account authority changed; sign in again")
+			return
+		}
+	} else if err := a.logoutRememberedSession(r, cookie.Value, user, session); err != nil {
+		problem(w, 403, "account authority changed; sign in again")
+		return
+	}
+	clearCookie(w, a.secureCookie)
+	respond(w, 200, Record{"ok": true})
+}
+
+func (a *App) logoutDetachedSession(cookie string, user Record, session Session) bool {
+	a.store.mu.RLock()
+	defer a.store.mu.RUnlock()
+	s := &a.store.state
+	actor := find(s, "users", session.UserID)
+	if a.store.closed || session.API || session.MemberID != "" || session.RememberDeviceID != "" ||
+		session.UserID != str(user, "id") || !memberAccountDetached(actor) ||
+		str(actor, "createdAt") != str(user, "createdAt") || s.Security[session.UserID].Generation != session.Generation {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !a.memberRosterSessionCurrentLocked(cookie, session) {
+		return false
+	}
+	delete(a.sessions, cookie)
+	return true
+}
+
+func (a *App) logoutRememberedSession(r *http.Request, cookie string, user Record, session Session) error {
 	removed := map[string]bool{}
 	err := a.store.Update(func(s *State) error {
 		if _, err := a.rememberedActor(s, user, session); err != nil {
@@ -178,16 +216,11 @@ func (a *App) logoutSession(w http.ResponseWriter, r *http.Request, user Record,
 		return nil
 	})
 	if err != nil {
-		problem(w, 403, "account authority changed; sign in again")
-		return
+		return err
 	}
 	a.revokeRememberedSessions(removed)
-	cookie, _ := r.Cookie("moedove_session")
 	a.mu.Lock()
-	if cookie != nil {
-		delete(a.sessions, cookie.Value)
-	}
+	delete(a.sessions, cookie)
 	a.mu.Unlock()
-	clearCookie(w, a.secureCookie)
-	respond(w, 200, Record{"ok": true})
+	return nil
 }

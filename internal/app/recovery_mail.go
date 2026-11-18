@@ -405,6 +405,7 @@ func (a *App) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 			}
 			user["memberAdminIds"] = admins
 		}
+		delete(user, membershipDetachedField)
 		if err = validate(s, "users", user); err != nil {
 			return err
 		}

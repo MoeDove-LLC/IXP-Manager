@@ -80,6 +80,9 @@ func validate(s *State, kind string, r Record) error {
 		return fmt.Errorf("unknown resource %s", kind)
 	}
 	for k := range r {
+		if kind == "users" && k == membershipDetachedField {
+			continue
+		}
 		if k == "id" || k == "createdAt" || k == "updatedAt" || k == "passwordHash" || (k == "ownershipSince" && ownsObservations(kind)) || (k == "bindingSince" && kind == "connections") {
 			continue
 		}
@@ -339,9 +342,6 @@ func validate(s *State, kind string, r Record) error {
 	if kind == "users" {
 		if str(r, "role") == "" {
 			return fmt.Errorf("role is required")
-		}
-		if str(r, "role") == "member" && len(membershipIDs(r)) == 0 {
-			return fmt.Errorf("member account requires memberId")
 		}
 	}
 	if kind == "core-links" && str(r, "portAId") == str(r, "portBId") {

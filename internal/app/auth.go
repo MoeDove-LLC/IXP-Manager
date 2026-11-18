@@ -82,7 +82,11 @@ func (a *App) authenticate(r *http.Request) (Record, Session, bool) {
 	if u == nil || s.Security[session.UserID].Generation != session.Generation || session.UserCreatedAt != "" && str(u, "createdAt") != session.UserCreatedAt || !rememberedSessionCurrent(&s, session, time.Now()) {
 		return nil, Session{}, false
 	}
-	if str(u, "role") == "member" {
+	if memberAccountDetached(u) {
+		if session.MemberID != "" || session.RememberDeviceID != "" {
+			return nil, Session{}, false
+		}
+	} else if str(u, "role") == "member" {
 		if session.MemberID == "" {
 			session.MemberID = selectedMember(u, "")
 		}
@@ -265,7 +269,7 @@ func (a *App) authRoute(w http.ResponseWriter, r *http.Request) bool {
 				removed[previous.ID] = true
 				forgetRememberedDevice(s, previous.ID)
 			}
-			if body.RememberDevice {
+			if body.RememberDevice && !memberAccountDetached(current) {
 				device, cookie, err := a.newRememberedDevice(s, current, r)
 				if err != nil {
 					return err

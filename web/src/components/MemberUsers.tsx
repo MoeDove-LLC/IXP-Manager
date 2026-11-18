@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { MailPlus, RefreshCw, Users } from "lucide-react";
+import { MailPlus, RefreshCw, UserMinus, Users } from "lucide-react";
 import { api, APIError, captureSessionContext } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Empty, ErrorNotice, Loading, message, time } from "@/components/shared";
+import MemberUserRemoval from "@/components/MemberUserRemoval";
 
 type MemberUser = {
   id: string;
@@ -39,11 +40,19 @@ export default function MemberUsers({
   memberName: string;
 }) {
   const titleId = useId();
-  const [state, setState] = useState<RosterState | null>(null);
+  const [state, setState] = useState<RosterState | null>(null),
+    [notice, setNotice] = useState(""),
+    [removing, setRemoving] = useState<{
+      memberId: string;
+      target: MemberUser;
+      contextCurrent: () => boolean;
+    } | null>(null);
   const sequence = useRef(0),
     pending = useRef<AbortController | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (nextNotice = "") => {
+    setRemoving(null);
+    setNotice(nextNotice);
     pending.current?.abort();
     const controller = new AbortController();
     pending.current = controller;
@@ -158,6 +167,13 @@ export default function MemberUsers({
             </div>
           </div>
         </CardHeader>
+        {notice && (
+          <CardContent className="pb-4">
+            <p className="notice text-sm" role="status">
+              {notice}
+            </p>
+          </CardContent>
+        )}
         {loading ? (
           <Loading />
         ) : visible.status === "error" ? (
@@ -202,12 +218,51 @@ export default function MemberUsers({
                     <p className="text-xs text-muted-foreground">账号创建时间</p>
                     <p className="break-words text-sm">{time(user.createdAt)}</p>
                   </div>
+                  <div className="flex justify-end sm:col-span-2 xl:col-span-4">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-label={`移出组织 ${user.name}`}
+                      onClick={() =>
+                        setRemoving({
+                          memberId,
+                          target: user,
+                          contextCurrent: captureSessionContext(),
+                        })
+                      }
+                    >
+                      <UserMinus />
+                      移出组织
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>
           </>
         )}
       </Card>
+      {removing && removing.memberId === memberId && removing.contextCurrent() && (
+        <MemberUserRemoval
+          key={`${memberId}:${removing.target.id}`}
+          memberId={memberId}
+          target={removing.target}
+          onClose={() => setRemoving(null)}
+          onRefresh={() => void load()}
+          onRemoved={(result, preview) => {
+            setRemoving(null);
+            if (result.signedOut) {
+              window.dispatchEvent(new Event("session-expired"));
+              return;
+            }
+            void load(
+              `${preview.target.name}已移出${preview.memberName}。` +
+                (preview.detachesAccount
+                  ? "账号已保留，需重新受邀加入组织。"
+                  : "账号与其他组织关系已保留。"),
+            );
+          }}
+        />
+      )}
     </section>
   );
 }

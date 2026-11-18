@@ -41,6 +41,7 @@ import {
   type ServerSchema,
 } from "@/lib/resources";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ErrorNotice, Loading, message } from "@/components/shared";
 import Dashboard, { AuditPage } from "@/pages/Dashboard";
@@ -95,6 +96,7 @@ export type Session = {
     memberId?: string;
     memberIds?: string[];
     memberRole?: "member" | "member-admin";
+    membershipDetached?: boolean;
   };
   csrfToken: string;
 };
@@ -471,7 +473,7 @@ export default function App() {
     const epoch = sessionEpoch.current;
     setCSRF(s.csrfToken);
     if (schema) configureResources(schema);
-    else void api<ServerSchema>("/schema")
+    else if (!s.user.membershipDetached) void api<ServerSchema>("/schema")
       .then((currentSchema) => {
         if (epoch !== sessionEpoch.current) return;
         configureResources(currentSchema);
@@ -498,7 +500,7 @@ export default function App() {
       if (!status.required) {
         const s = await readSession(remember, () => epoch === sessionEpoch.current);
         if (s && epoch === sessionEpoch.current) {
-          const schema = await api<ServerSchema>("/schema");
+          const schema = s.user.membershipDetached ? undefined : await api<ServerSchema>("/schema");
           if (epoch === sessionEpoch.current) accept(s, schema);
         }
       }
@@ -672,6 +674,26 @@ export default function App() {
           navigate(destination);
         }}
       />
+    );
+  if (session.user.membershipDetached)
+    return (
+      <main className="mx-auto w-full max-w-lg px-4 py-12">
+        <Card>
+          <CardHeader>
+            <h1 className="text-lg font-semibold">当前账号没有组织</h1>
+            <p className="text-sm text-muted-foreground">
+              打开组织管理员发出的邀请链接，即可重新加入成员网络。
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ErrorNotice message={error} />
+            <Button variant="outline" onClick={() => void logout()}>
+              <LogOut />
+              退出登录
+            </Button>
+          </CardContent>
+        </Card>
+      </main>
     );
   const navigation = getNavigation();
   const isMember = session.user.role === "member";
