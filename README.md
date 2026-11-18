@@ -248,7 +248,7 @@ Go 测试覆盖认证、CSRF、权限边界、引用完整性、原子导入、�
 
 ## 迁移与项目来源
 
-当前 `go-rewrite` 分支使用上文的 Go 构建、测试和部署入口。前端项目位于 `web/`。`app/`、`routes/`、`database/`、`resources/` 和旧测试仍供核对迁移行为与数据格式。逐项替代与清理的依据见 [迁移清单](docs/MIGRATION.md)。旧版安装、构建和测试入口见 [原 PHP 版本快照](https://github.com/MoeDove-LLC/IXP-Manager/tree/8161e185b9a155f6b297f1487a2d0c6ed920e27e)。
+当前 `go-rewrite` 分支从 `web/` 构建 React 控制台并由 `ixp-manager` 提供静态文件。仓库根目录的旧 `public/` 已退役，其中的 PHP 入口、主题文件和 Horizon/Telescope 编译产物均可在旧版查阅。`app/`、`routes/`、`database/`、`resources/` 和旧测试用于核对迁移行为与数据格式。 [迁移清单](docs/MIGRATION.md) · [原 PHP 版本快照](https://github.com/MoeDove-LLC/IXP-Manager/tree/8161e185b9a155f6b297f1487a2d0c6ed920e27e)
 
 本项目源自 INEX IXP Manager。原作者为 Barry O'Donovan 和 Nick Hilliard。
 Copyright (C) 2009 - 2025 Internet Neutral Exchange Association Company Limited By Guarantee.
