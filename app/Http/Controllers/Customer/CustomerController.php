@@ -23,13 +23,12 @@ namespace IXP\Http\Controllers\Customer;
  * http://www.gnu.org/licenses/gpl-2.0.html
  */
 
-use App, Auth, Cache, Countries, Former, Mail;
+use App, Auth, Cache, Countries, Former;
 
 use Carbon\Carbon;
 use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Database\Eloquent\Builder;
 
-use Illuminate\Support\Facades\Log;
 use IXP\Exceptions\GeneralException;
 use IXP\Utils\CountryUtils;
 use Illuminate\Http\{
@@ -57,12 +56,9 @@ use IXP\Models\{
     Vlan
 };
 
-use IXP\Mail\Customer\WelcomeEmail;
-
 use IXP\Http\Requests\Customer\{
     Store                   as CustomerRequest,
-    BillingInformation      as BillingInformationRequest,
-    WelcomeEmail            as WelcomeEmailRequest
+    BillingInformation      as BillingInformationRequest
 };
 
 use IXP\Utils\View\Alert\{
@@ -531,66 +527,6 @@ class CustomerController extends Controller
                 'peers' => CustomerAggregator::getPeeringManagerArrayByType( $cust, Vlan::peeringManager()->orderBy( 'number' )->get()->toArray(), [ 4,6 ] ) ?: false
             ])->render()
         ] );
-    }
-
-    /**
-     * Display the Welcome Email form
-     *
-     * @param   Customer $cust
-     *
-     * @return  View
-     *
-     * @throws
-     */
-    public function welcomeEmail( Customer $cust ) : View
-    {
-        $emails = [];
-        foreach( $cust->users as $user ){
-            if( $email = filter_var( $user->email, FILTER_VALIDATE_EMAIL ) ) {
-                $emails[] = $email;
-            }
-        }
-
-        Former::populate( [
-            'to'                        => $cust->nocemail,
-            'cc'                        => implode( ',', $emails ),
-            'bcc'                       => config('identity.email'),
-            'subject'                   => config('identity.name'). ' :: Welcome Mail',
-        ] );
-
-        return view( 'customer/welcome-email' )->with([
-            'c'         => $cust,
-            'body'      => view( "customer/emails/welcome-email" )->with([
-                'c'                     => $cust,
-                'admins'                => $cust->customerToUser()->custAdmin()->get(),
-                'netinfo'               => NetworkInfo::vlanProtocol(),
-                'identityEmail'         => config('identity.email'),
-                'identityOrgname'       => config('identity.orgname'),
-            ])->render()
-        ]);
-    }
-
-    /**
-     * Send the welcome email to a customer
-     *
-     * @param WelcomeEmailRequest   $r
-     * @param Customer              $cust
-     */
-    public function sendWelcomeEmail( WelcomeEmailRequest $r, Customer $cust ): RedirectResponse|View
-    {
-        $mailable = new WelcomeEmail( $cust, $r );
-
-        try {
-            $mailable->checkIfSendable();
-        } catch( \Exception $e ) {
-            AlertContainer::push( $e->getMessage(), Alert::DANGER );
-            return back()->withInput();
-        }
-
-        Mail::send( $mailable );
-        Log::notice("Welcome email sent for {$cust->id}|{$cust->name}");
-        AlertContainer::push( "Welcome email sent.", Alert::SUCCESS );
-        return redirect( route( "customer@overview", [ "cust" => $cust->id ] ) );
     }
 
     /**

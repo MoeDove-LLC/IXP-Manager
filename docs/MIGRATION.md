@@ -415,3 +415,5 @@ Quagga 的真实单播会话状态已接入监控。固定私密 bgpd.vty 与本
 「交换中心设置 → 数据目录检查」覆盖旧基础验证中的在线文件和目录写入检查。浏览器管理员显式触发 `POST /api/system/storage-check` 后，服务核对当前目录与已持有的锁，再创建私有临时文件和目录，执行小型写入、同步、重命名、读回和清理。最终重新核对目录与锁。结果只给出阶段、固定错误分类和检查时间。检查范围是本进程当前主数据目录的一次小型文件操作，正式状态文件、密钥、锁和业务修订保持原样。
 
 Go Linux 发布包增加了 systemd 服务和账号声明。它用专用账号运行前台 Go 进程，监听回环地址，固定私有状态目录，并支持同一发布目录中的 UI。发布流程覆盖停止、离线备份、归档校验、新目录恢复与切换。旧 PHP 安装器、Vagrant 测试环境、旧 Docker 开发环境和 PHP IDE 工具已退役，可从原版提交查阅。 [Go 主机安装](SYSTEMD-INSTALL.md) · [原版树](https://github.com/MoeDove-LLC/IXP-Manager/tree/8161e185b9a155f6b297f1487a2d0c6ed920e27e)
+
+原管理员成员欢迎邮件迁至 Go「成员 → 欢迎邮件」。草稿汇总当前成员、端口和 LAG、VLAN、双栈地址及成员管理员资料。管理员可在当前成员和支持邮箱范围内编辑 To、CC、BCC、主题及正文。排队前绑定预览内容和成员资料，投递与重试前复核当前归属。正文与抄送信息使用加密队列，BCC 使用 SMTP 信封。独立 Go 竞态、备份恢复和 Chromium 测试验证了完整流程，含响应丢失后的同一审阅重放。对应的 PHP 路由、表单、邮件类和模板已退役。 [原版欢迎邮件](https://github.com/MoeDove-LLC/IXP-Manager/blob/8161e185b9a155f6b297f1487a2d0c6ed920e27e/resources/views/customer/emails/welcome-email.blade.php)

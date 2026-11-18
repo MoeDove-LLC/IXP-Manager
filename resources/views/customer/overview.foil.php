@@ -33,10 +33,6 @@
                     View / Update IRRDB Entries...
                 </a>
 
-                <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="<?= route( 'customer@welcome-email', [ 'cust' => $c->id ] ) ?>">
-                    Send Welcome Email...
-                </a>
             </div>
         </div>
 
