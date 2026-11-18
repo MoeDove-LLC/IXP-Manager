@@ -1,6 +1,4 @@
+These archived configurations and API responses were generated from the old
+PHP CI database. They provide historical baselines for checking migrations.
 
-This directory contains "known good" generated configurations from the
-Travis database which Travis can test against to ensure no bugs /
-regressions have been introduced into the code.
-
-See the regenerate.sh script to build new versions of these.
+Run `make test` from the repository root for the current Go and web checks.
