@@ -4,7 +4,7 @@ import net from "node:net";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
 const dir = await mkdtemp(path.join(tmpdir(), "mailing-browser-"));
@@ -29,7 +29,39 @@ try {
   const page = await admin.newPage(), errors = [];
   page.setDefaultTimeout(12000); page.on("pageerror", e => errors.push(e.message));
   let adminGets = 0; page.on("request", request => { if (request.method() === "GET" && new URL(request.url()).pathname === "/api/mailing-lists") adminGets++; });
+  let storageRequests = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/system/storage-check") storageRequests++;
+  });
   await page.goto(base + "/#settings"); await page.getByLabel("IX-F 导出格式", { exact: true }).waitFor();
+  const storageCheck = page.getByRole("region", { name: "数据目录检查", exact: true });
+  const runStorageCheck = storageCheck.getByRole("button", { name: "运行存储检查", exact: true });
+  await runStorageCheck.waitFor();
+  assert.equal(storageRequests, 0, "opening settings must not probe the filesystem");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await runStorageCheck.click();
+  await storageCheck.getByText("本次检查通过", { exact: true }).waitFor();
+  assert.equal(await storageCheck.locator('[data-check-id="readback"]').count(), 1);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "storage checks must fit 390px viewport");
+  if (process.env.STORAGE_CHECK_SCREENSHOT) await storageCheck.screenshot({ path: process.env.STORAGE_CHECK_SCREENSHOT });
+
+  const lock = path.join(dir, "data", ".lock"), heldLock = path.join(dir, "data", ".fixture-held-lock");
+  await rename(lock, heldLock);
+  try {
+    await writeFile(lock, "", { flag: "wx", mode: 0o600 });
+    await runStorageCheck.click();
+    await storageCheck.getByText("本次检查未通过", { exact: true }).waitFor();
+    assert.equal(await storageCheck.locator('[data-check-id="binding"]').count(), 1);
+    assert.equal(await storageCheck.getByText("本次检查通过", { exact: true }).count(), 0);
+  } finally {
+    await rm(lock, { force: true });
+    await rename(heldLock, lock);
+  }
+  await runStorageCheck.click();
+  await storageCheck.getByText("本次检查通过", { exact: true }).waitFor();
+  assert.equal(storageRequests, 3);
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  console.log("PASS explicit admin storage check, actual replaced-lock failure and retry, and 390px layout");
   await page.getByLabel("IX-F 导出格式", { exact: true }).selectOption("0.7");
   assert.equal(adminGets, 0, "mailing configuration loaded before opening its lazy card");
   await page.getByRole("button", { name: "管理邮件列表", exact: true }).click();
@@ -85,6 +117,7 @@ try {
     const self = await api(ctx, "/account/mailing-lists"); assert.equal(self.email, `${role}@example.test`); assert.equal(JSON.stringify(self).includes("admin@example.test"), false);
     assert.ok(await own.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${role} mobile overflow`);
     await own.goto(base + "/#settings"); assert.equal(await own.getByRole("button", { name: "管理邮件列表", exact: true }).count(), 0);
+    assert.equal(await own.getByRole("button", { name: "运行存储检查", exact: true }).count(), 0);
     if (role === "viewer") { viewer = ctx; viewerRecord = record; }
     await own.close();
   }

@@ -18,6 +18,7 @@ import {
 import { ErrorNotice, Heading, Loading, message } from "@/components/shared";
 const MailingListAdmin = lazy(() => import("@/components/MailingListAdmin"));
 const LegacyMailingImport = lazy(() => import("@/components/LegacyMailingImport"));
+const StorageCheck = lazy(() => import("@/components/StorageCheck"));
 export default function Settings({
   role,
   onChange,
@@ -209,6 +210,7 @@ export default function Settings({
       )}
       {role === "admin" && (
         <>
+          <Suspense fallback={<Loading />}><StorageCheck /></Suspense>
           <Card className="mt-6 max-w-3xl min-w-0"><CardHeader><CardTitle>邮件列表</CardTitle><CardDescription>管理列表定义并导出用户明确选择的偏好；外部同步尚未确认。</CardDescription></CardHeader><CardContent>{showMailingLists ? <Suspense fallback={<Loading />}><MailingListAdmin /></Suspense> : <Button variant="outline" onClick={() => setShowMailingLists(true)}>管理邮件列表</Button>}</CardContent></Card>
           <DataTransfer onChange={onChange} />
           <LegacyPatchImport onChange={onChange} />
