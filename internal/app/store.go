@@ -80,6 +80,7 @@ type State struct {
 	LegacyDocstore           *LegacyDocstoreState     `json:"legacyDocstore,omitempty"`
 	NoteNotifications        *NoteNotificationState   `json:"noteNotifications,omitempty"`
 	PatchNotifications       *PatchNotificationState  `json:"patchNotifications,omitempty"`
+	WelcomeMail              []MemberWelcomeReceipt   `json:"welcomeMail,omitempty"`
 	LegacyMailing            *LegacyMailingState      `json:"legacyMailing,omitempty"`
 	LegacyNotes              *LegacyNotesState        `json:"legacyNotes,omitempty"`
 	LegacyAudit              []legacyAuditBatch       `json:"legacyAudit,omitempty"`
@@ -197,6 +198,10 @@ func OpenStore(dir string) (*Store, error) {
 		s.Close()
 		return nil, err
 	}
+	if err := validateMemberWelcomeMail(&s.state, s.securityKey); err != nil {
+		s.Close()
+		return nil, err
+	}
 	if err := validateLegacyMailing(&s.state); err != nil {
 		s.Close()
 		return nil, err
@@ -269,6 +274,7 @@ func (s *Store) updateLocked(fn func(*State) error) error {
 	pruneRememberedDevices(&next)
 	pruneNoteMailBindings(&next)
 	prunePatchNotifications(&next)
+	pruneMemberWelcomeMail(&next)
 	b, err := json.MarshalIndent(next, "", "  ")
 	if err != nil {
 		return err

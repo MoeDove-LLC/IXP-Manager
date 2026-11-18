@@ -323,7 +323,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.URL.Path == "/api/notifications" || strings.HasPrefix(r.URL.Path, "/api/notifications/") {
-		a.notifications(w, r, user)
+		a.notifications(w, r, user, session)
 		return
 	}
 	if r.URL.Path == "/api/jobs" || strings.HasPrefix(r.URL.Path, "/api/jobs/") {
@@ -406,6 +406,9 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.HasPrefix(r.URL.Path, "/api/member/") {
 		a.memberService(w, r, user, session)
+		return
+	}
+	if a.memberWelcomeRoutes(w, r, user, session) {
 		return
 	}
 	if strings.HasPrefix(r.URL.Path, "/api/members/") {

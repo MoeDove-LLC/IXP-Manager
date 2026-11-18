@@ -52,7 +52,7 @@ func publicMail(e notify.Entry) Record {
 	}
 	return Record{"id": e.ID, "to": e.To, "subject": e.Subject, "status": e.Status, "attempts": e.Attempts, "createdAt": e.CreatedAt, "nextAttemptAt": optionalTime(e.NextAttemptAt), "expiresAt": optionalTime(e.ExpiresAt), "lastError": lastError}
 }
-func (a *App) notifications(w http.ResponseWriter, r *http.Request, user Record) {
+func (a *App) notifications(w http.ResponseWriter, r *http.Request, user Record, session Session) {
 	if str(user, "role") != "admin" {
 		problem(w, 403, "administrator required")
 		return
@@ -76,6 +76,7 @@ func (a *App) notifications(w http.ResponseWriter, r *http.Request, user Record)
 		return
 	}
 	err := a.store.Update(func(s *State) error {
+		now := time.Now()
 		if err := a.patchRetryApplicable(s, parts[0]); err != nil {
 			return err
 		}
@@ -86,15 +87,21 @@ func (a *App) notifications(w http.ResponseWriter, r *http.Request, user Record)
 			if entry.ID != parts[0] {
 				continue
 			}
+			if strings.HasPrefix(entry.Key, memberWelcomeMailPrefix) {
+				actor, err := a.atlasActor(s, user, session, "admin")
+				if session.API || err != nil || str(actor, "createdAt") != session.UserCreatedAt || !a.memberWelcomeMailApplicable(s, entry, now) {
+					return errors.New("welcome mail member, sender authority or reviewed context changed; delivery cannot be retried")
+				}
+			}
 			if invitation := mailInvitation(s, entry); invitation != nil && invitation.LegacyAccount != nil {
 				current := find(s, "users", str(user, "id"))
-				if str(current, "role") != "admin" || str(current, "createdAt") != str(user, "createdAt") || !mailStillApplicable(s, entry, time.Now()) {
+				if str(current, "role") != "admin" || str(current, "createdAt") != str(user, "createdAt") || !mailStillApplicable(s, entry, now) {
 					return errors.New("legacy account invitation is no longer applicable")
 				}
 			}
 			break
 		}
-		if err := s.Outbox.Retry(parts[0], time.Now()); err != nil {
+		if err := s.Outbox.Retry(parts[0], now); err != nil {
 			return err
 		}
 		audit(s, str(user, "id"), "retry-email", "notifications", parts[0])
@@ -134,9 +141,17 @@ func (a *App) deliverOne(ctx context.Context, now time.Time) error {
 		// Recheck delivery authority after claiming/decrypting and immediately
 		// before handing the immutable message to the transport. An SMTP message
 		// already handed off cannot be recalled if authority changes in flight.
-		if strings.HasPrefix(entry.Key, "note:") || strings.HasPrefix(entry.Key, "patch:") || strings.HasPrefix(entry.Key, "invite:") {
+		welcome := strings.HasPrefix(entry.Key, memberWelcomeMailPrefix)
+		if welcome || strings.HasPrefix(entry.Key, "note:") || strings.HasPrefix(entry.Key, "patch:") || strings.HasPrefix(entry.Key, "invite:") {
 			s := a.store.Snapshot()
-			if !a.mailApplicable(&s, entry, time.Now()) {
+			checkedAt := time.Now()
+			applicable := false
+			if welcome {
+				applicable = a.memberWelcomeTransportApplicable(&s, entry, msg, checkedAt)
+			} else {
+				applicable = a.mailApplicable(&s, entry, checkedAt)
+			}
+			if !applicable {
 				return a.store.Update(func(s *State) error {
 					for i := range s.Outbox.Entries {
 						e := &s.Outbox.Entries[i]
@@ -163,6 +178,9 @@ func (a *App) deliverOne(ctx context.Context, now time.Time) error {
 func (a *App) mailApplicable(s *State, e notify.Entry, now time.Time) bool {
 	if strings.HasPrefix(e.Key, "patch:") {
 		return a.patchMailApplicable(s, e, now)
+	}
+	if strings.HasPrefix(e.Key, memberWelcomeMailPrefix) {
+		return a.memberWelcomeMailApplicable(s, e, now)
 	}
 	return mailStillApplicable(s, e, now)
 }
