@@ -66,11 +66,30 @@ artifact and are not printed in diagnostics. No passwords, password hashes,
 TOTP seeds, recovery codes, API keys, remembered tokens, arbitrary preferences,
 or login metadata are selected.
 
-The next authorization step is separate: an administrator explicitly maps source
-organization IDs to current organization entities and source identities to a
-reviewed invitation. An email match is a candidate, never proof or an automatic
-merge. New accounts receive fresh IDs and passwords through mailbox invitation
-acceptance; existing accounts must sign in and reauthenticate with their current
-password and enabled MFA. Disabled/unknown or ambiguous source rows must remain
-on hold. Current global roles and MFA secrets are never derived from this file.
-Even rows with no review findings still require this explicit process.
+## Review and activate in the Go workspace
+
+As a platform administrator, open **成员邀请 → 旧账号批量审核**. Select the original
+archive file and the accounts and relationships to migrate. Associate each selected
+old organization ID with its current organization. A batch can include up to 25
+accounts and 32 selected relationships per account. The server checks the archive
+checksum and presents the current organizations and roles for each recipient.
+
+When the source email matches a current member account, verify and select the
+specific account, then read a fresh preview. The review flags disabled or unknown
+source states, ambiguous identities, duplicate relationships, unsupported
+privileges, inactive organizations, and overlapping pending invitations.
+Resolve held accounts before confirming the batch. A valid current password and
+any enabled MFA are required to queue the reviewed invitations.
+
+Each selected account receives one email covering its reviewed organizations.
+The recipient checks all the organizations and roles on the acceptance page.
+New accounts choose their own password and inherit a reviewed old default
+organization if it was selected. Existing accounts sign in and reauthenticate
+with their current password and enabled MFA. Acceptance applies the reviewed
+relationships together. The account's global role, existing affiliations and
+MFA settings are preserved. If an organization or account changes, read a fresh
+preview or revoke the pending invitation and issue a new one as appropriate.
+
+Keep the original archive in private storage. The service keeps the selected
+source IDs, archive checksum and organization bindings with each invitation.
+These records use the normal invitation retention period.

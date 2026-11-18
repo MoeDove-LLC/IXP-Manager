@@ -1,8 +1,8 @@
 // Isolated fake loopback SMTP only. Never contacts an external mail server.
 import assert from "node:assert/strict";
 import net from "node:net";
-import { spawn } from "node:child_process";
-import { mkdtemp, writeFile, readFile, mkdir } from "node:fs/promises";
+import { spawn, spawnSync } from "node:child_process";
+import { mkdtemp, writeFile, readFile, mkdir, realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { createHmac } from "node:crypto";
 const { chromium } = await import(
@@ -237,6 +237,95 @@ const createInvite = async (page, email, memberId) => {
   await page.getByRole("button", { name: "发送成员邀请", exact: true }).click();
   await page.getByRole("dialog").waitFor({ state: "hidden" });
 };
+
+const migrateLegacyAccount = async (page, memberA, memberB) => {
+  const email = "migrated-member@example.test";
+  const sourceUser = "9007199254740993";
+  const fixtureDir = await realpath(workspace);
+  const source = `${fixtureDir}/account-source.json`;
+  const archive = `${fixtureDir}/account-archive.json`;
+  const sourceData = {
+    tables: {
+      user: [{ id: sourceUser, email, name: "Migrated member fixture", username: "literal-username", disabled: 0, custid: "42" }],
+      customer_to_users: [
+        { id: "91", user_id: sourceUser, customer_id: "41", privs: 1 },
+        { id: "92", user_id: sourceUser, customer_id: "42", privs: 2 },
+      ],
+    },
+  };
+  // The file carries an unneeded unusual scalar to check that the browser preserves raw archive bytes.
+  await writeFile(source, JSON.stringify(sourceData).replace('"literal-username"', "1e+05"), { mode: 0o600 });
+  const converted = spawnSync(process.env.TEST_MIGRATOR_BIN, ["--account-archive", "--input", source, "--output", archive], { encoding: "utf8" });
+  assert.equal(converted.status, 0, `isolated account converter failed: ${converted.stderr ?? converted.error?.message ?? ""}`);
+  assert.match(await readFile(archive, "utf8"), /"username":1e\+05/);
+
+  await go(page, "invitations");
+  await page.getByRole("button", { name: "旧账号批量审核", exact: true }).click();
+  const panel = page.locator('[aria-label="旧账号批量审核"]');
+  await panel.locator('input[type="file"]').setInputFiles(archive);
+  await panel.getByRole("checkbox", { name: `选择旧账号 ${sourceUser}`, exact: true }).check();
+  await panel.getByLabel("旧组织 #41", { exact: true }).selectOption(memberA.id);
+  const secondMapping = panel.getByLabel("旧组织 #42", { exact: true });
+  await secondMapping.selectOption(memberB.id);
+  const preview = panel.getByRole("button", { name: "读取审核预览", exact: true });
+  const confirm = panel.getByRole("button", { name: "确认创建激活邀请", exact: true });
+  await preview.click();
+  await confirm.waitFor();
+  await secondMapping.selectOption(memberA.id);
+  await confirm.waitFor({ state: "hidden" });
+  await secondMapping.selectOption(memberB.id);
+  await preview.click();
+  await confirm.waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "batch review must fit 390px viewport");
+  if (process.env.LEGACY_ACCOUNT_SCREENSHOT) {
+    await panel.screenshot({ path: process.env.LEGACY_ACCOUNT_SCREENSHOT });
+  }
+  assert.equal(smtpMessages.some((message) => message.to === email), false);
+  await confirm.click();
+  const confirmation = page.getByRole("dialog", { name: "确认创建激活邀请", exact: true });
+  await confirmation.getByLabel("当前密码", { exact: true }).fill(password);
+  await confirmation.getByRole("button", { name: "创建并进入邮件队列", exact: true }).click();
+  const link = await linkFor(email, "accept-invitation");
+  assert.ok(!(await json(page, "/resources/users")).items.some((user) => user.email === email), "queueing cannot activate an account");
+
+  const recipient = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  try {
+    const view = await recipient.newPage();
+    await view.goto(link);
+    await view.getByText(memberA.name, { exact: true }).waitFor();
+    assert.ok(await view.getByText(memberB.name, { exact: true }).count() > 0, "recipient must see both organizations");
+    assert.ok(await view.getByText(/成员管理员.*默认组织/).count() > 0);
+    const renamed = `${memberB.name} updated during review`;
+    await json(page, `/resources/members/${memberB.id}`, {
+      name: renamed, asn: memberB.asn, status: "active",
+    }, "PUT");
+    const accept = async () => {
+      await view.getByLabel("你的姓名", { exact: true }).fill("Migrated member fixture");
+      await view.getByLabel("账号密码", { exact: true }).fill(password);
+      await view.getByLabel("确认密码", { exact: true }).fill(password);
+      await view.getByRole("button", { name: "确认接受邀请", exact: true }).click();
+    };
+    await accept();
+    await view.getByRole("alert").filter({ hasText: "重新读取邀请" }).waitFor();
+    await view.getByRole("button", { name: "重新读取邀请", exact: true }).click();
+    await view.getByText(renamed, { exact: true }).waitFor();
+    await accept();
+    await view.getByText("邀请已接受。请重新登录，可在已授权的组织之间切换。", { exact: true }).waitFor();
+    await view.getByRole("button", { name: "返回登录", exact: true }).click();
+    await login(view, email);
+    const memberships = await json(view, "/memberships");
+    assert.equal(memberships.activeMemberId, memberB.id);
+    assert.deepEqual(Object.fromEntries(memberships.items.map((item) => [item.id, item.role])), {
+      [memberA.id]: "member", [memberB.id]: "member-admin",
+    });
+  } finally {
+    await recipient.close();
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  }
+  console.log("PASS real legacy converter, archive preview at 390px, isolated SMTP, stale recipient reinspection and two reviewed organizations with old default");
+};
+
 const totp = (secret) => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
   const bits = [...secret]
@@ -369,6 +458,7 @@ try {
   await login(existingPage, "existing@example.test");
   assert.equal((await json(existingPage, "/memberships")).items.length, 2);
   await existingContext.close();
+  if (process.env.TEST_MIGRATOR_BIN) await migrateLegacyAccount(page, a, b);
   await go(page, "notifications");
   await page.getByText("已启用邮件投递", { exact: true }).waitFor();
   const metadata = await json(page, "/notifications");

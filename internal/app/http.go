@@ -313,6 +313,9 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.serveMonthlyOverallTraffic(w, r, user, session)
 		return
 	}
+	if a.legacyAccountInvitationRoutes(w, r, user, session) {
+		return
+	}
 	if r.URL.Path == legacyCustomerSelectionPath {
 		a.legacyCustomersByVlanAndProtocol(w, r, user, session)
 		return

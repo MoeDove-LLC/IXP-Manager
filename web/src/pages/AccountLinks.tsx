@@ -1,18 +1,12 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowLeft, Check, KeyRound, Mail, ShieldCheck } from "lucide-react";
-import { APIError, save } from "@/lib/api";
+import { api, APIError, captureSessionContext, save } from "@/lib/api";
+import { checkedInviteInfo, invitationConsent, type InviteInfo } from "@/lib/invitation-review";
 import type { Session } from "@/App";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorNotice, Loading, message, time } from "@/components/shared";
-type InviteInfo = {
-  email: string;
-  memberId: string;
-  memberName: string;
-  expiresAt: string;
-  accountExists: boolean;
-};
 export default function AccountLinks({
   page,
   token,
@@ -28,20 +22,25 @@ export default function AccountLinks({
   onSessionReset: () => void;
   onBack: () => void;
 }) {
-  const [info, setInfo] = useState<InviteInfo | null>(null),
+  const [inspection, setInspection] = useState<{ token: string; info: InviteInfo } | null>(null),
+    [inspectionVersion, setInspectionVersion] = useState(0),
     [loading, setLoading] = useState(page === "accept-invitation"),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [success, setSuccess] = useState(""),
     [mfaRequired, setMfaRequired] = useState(false);
+  const scope = useRef({ page, token });
+  scope.current = { page, token };
+  const info = page === "accept-invitation" && inspection?.token === token ? inspection.info : null;
   const invite = page === "accept-invitation",
     forgot = page === "forgot-password";
   useEffect(() => {
     if (success && !token) return;
-    setInfo(null);
+    setInspection(null);
     setSuccess("");
     setError("");
     setMfaRequired(false);
+    setBusy(false);
     if (!invite) {
       setLoading(false);
       if (!forgot && !token)
@@ -54,25 +53,37 @@ export default function AccountLinks({
       return;
     }
     let active = true;
+    const controller = new AbortController();
     setLoading(true);
-    save<InviteInfo>("/invitations/inspect", { token })
-      .then((data) => active && setInfo(data))
+    api<InviteInfo>("/invitations/inspect", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+      signal: controller.signal,
+      cache: "no-store",
+    })
+      .then((data) => {
+        if (active) setInspection({ token, info: checkedInviteInfo(data) });
+      })
       .catch((e) => active && setError(message(e)))
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
+      controller.abort();
     };
-  }, [page, token]);
+  }, [page, token, inspectionVersion]);
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setBusy(true);
     setError("");
     const form = Object.fromEntries(new FormData(e.currentTarget));
+    const contextCurrent = captureSessionContext();
+    const current = () => scope.current.page === page && scope.current.token === token && contextCurrent();
     try {
       if (forgot) {
         const data = await save<{ message?: string }>("/forgot-password", {
           email: form.email,
         });
+        if (!current()) return;
         setSuccess(
           data.message ?? "如果账号存在且邮件服务已启用，您将收到恢复邮件。",
         );
@@ -85,12 +96,17 @@ export default function AccountLinks({
           info.accountExists
             ? {
                 token,
+                ...invitationConsent(info),
                 currentPassword: form.currentPassword,
                 code: form.code || undefined,
               }
-            : { token, name: form.name, password: form.password },
+            : { token, ...invitationConsent(info), name: form.name, password: form.password },
         );
-        setSuccess("邀请已接受。请重新登录，进入受邀成员网络。");
+        if (!current()) return;
+        setBusy(false);
+        setSuccess(info.organizations && info.organizations.length > 1
+          ? "邀请已接受。请重新登录，可在已授权的组织之间切换。"
+          : "邀请已接受。请重新登录，进入受邀成员网络。");
         onSessionReset();
       } else {
         if (!token)
@@ -102,16 +118,22 @@ export default function AccountLinks({
           newPassword: form.newPassword,
           code: form.code || undefined,
         });
+        if (!current()) return;
+        setBusy(false);
         setSuccess("密码已更新，原有会话和 API 令牌已失效。请重新登录。");
         onSessionReset();
       }
     } catch (e) {
+      if (!current()) return;
       if (e instanceof APIError && e.data?.mfaRequired) {
         setMfaRequired(true);
         setError("此账号已开启双重验证，请补充验证器代码或恢复码。");
+      } else if (invite && e instanceof APIError && [409, 412].includes(e.status)) {
+        setInspection(null);
+        setError("邀请涉及的组织或权限已有变化，请重新读取邀请并核对后再接受。");
       } else setError(message(e));
     } finally {
-      setBusy(false);
+      if (current()) setBusy(false);
     }
   };
   const login = async () => {
@@ -173,7 +195,23 @@ export default function AccountLinks({
               <>
                 {info && (
                   <div className="rounded-lg border bg-muted/30 p-4 text-sm">
-                    <p className="font-medium">{info.memberName}</p>
+                    {info.organizations ? (
+                      <>
+                        <p className="font-medium">受邀组织与权限</p>
+                        <ol className="mt-3 space-y-3">
+                          {info.organizations.map((org, index) => (
+                            <li key={org.memberId} className="rounded border bg-background p-3">
+                              <p className="break-words font-medium">{org.memberName}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {org.memberAdmin ? "成员管理员" : "普通成员"}
+                                {!info.accountExists && index === 0 && " · 默认组织"}
+                              </p>
+                            </li>
+                          ))}
+                        </ol>
+                        {info.accountExists && <p className="mt-3 text-xs text-muted-foreground">现有账号保留当前默认组织。</p>}
+                      </>
+                    ) : <p className="font-medium">{info.memberName}</p>}
                     <p className="mt-2 break-all text-muted-foreground">
                       受邀邮箱：{info.email}
                     </p>
@@ -181,6 +219,15 @@ export default function AccountLinks({
                       有效期至 {time(info.expiresAt)}
                     </p>
                   </div>
+                )}
+                {invite && token && (
+                  <Button variant="outline" disabled={busy} onClick={() => {
+                    setInspection(null);
+                    setError("");
+                    setInspectionVersion(value => value + 1);
+                  }}>
+                    重新读取邀请
+                  </Button>
                 )}
                 {invite && info?.accountExists && !matching ? (
                   <div className="space-y-4">

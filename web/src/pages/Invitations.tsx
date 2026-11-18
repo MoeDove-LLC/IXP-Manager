@@ -1,7 +1,8 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { MailPlus, RefreshCw, Trash2 } from "lucide-react";
+import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
+import { FileJson, MailPlus, RefreshCw, Trash2 } from "lucide-react";
 import { api, save, APIError } from "@/lib/api";
 import type { Row } from "@/lib/resources";
+import type { InvitationOrganization } from "@/lib/invitation-review";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,7 @@ import {
   message,
   time,
 } from "@/components/shared";
+const LegacyAccountReview = lazy(() => import("@/components/LegacyAccountReview"));
 type Invite = {
   id: string;
   email: string;
@@ -29,6 +31,7 @@ type Invite = {
   status: string;
   createdAt: string;
   expiresAt: string;
+  organizations?: InvitationOrganization[];
 };
 const status: Record<string, string> = {
   pending: "等待接受",
@@ -44,6 +47,7 @@ export default function Invitations({
   memberId?: string;
 }) {
   const [items, setItems] = useState<Invite[]>([]),
+    [archiveOpen, setArchiveOpen] = useState(false),
     [members, setMembers] = useState<Row[]>([]),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
@@ -112,6 +116,12 @@ export default function Invitations({
         title="成员邀请"
         description="邀请用户加入指定成员网络，访问权限只作用于对应网络。"
       >
+        {role === "admin" && (
+          <Button variant="outline" onClick={() => setArchiveOpen(value => !value)}>
+            <FileJson />
+            {archiveOpen ? "关闭批量审核" : "旧账号批量审核"}
+          </Button>
+        )}
         <Button
           onClick={() => {
             setOpen(true);
@@ -123,6 +133,11 @@ export default function Invitations({
           邀请用户
         </Button>
       </Heading>
+      {role === "admin" && archiveOpen && (
+        <Suspense fallback={<Loading />}>
+          <LegacyAccountReview onInvited={() => void load()} />
+        </Suspense>
+      )}
       <ErrorNotice message={error} />
       {done && (
         <p role="status" className="notice mb-5">
@@ -168,8 +183,20 @@ export default function Invitations({
                 {items.map((i) => (
                   <tr key={i.id}>
                     <td>{i.email}</td>
-                    <td>{i.memberName}</td>
-                    <td>{i.memberAdmin ? "成员管理员" : "成员只读"}</td>
+                    <td>
+                      {i.organizations?.length ? (
+                        <ul className="space-y-2">
+                          {i.organizations.map(org => <li key={org.memberId}>{org.memberName}</li>)}
+                        </ul>
+                      ) : i.memberName}
+                    </td>
+                    <td>
+                      {i.organizations?.length ? (
+                        <ul className="space-y-2">
+                          {i.organizations.map(org => <li key={org.memberId}>{org.memberAdmin ? "成员管理员" : "普通成员"}</li>)}
+                        </ul>
+                      ) : i.memberAdmin ? "成员管理员" : "成员只读"}
+                    </td>
                     <td>
                       <Badge
                         variant={i.status === "pending" ? "default" : "outline"}
