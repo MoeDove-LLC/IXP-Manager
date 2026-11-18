@@ -294,6 +294,9 @@ func convertWithPeerDrafts(source legacyExport, peerOptions peerDraftOptions) (e
 		return c.result, err
 	}
 	c.connections()
+	if err := c.resellerFanouts(); err != nil {
+		return c.result, err
+	}
 	if err := c.registeredMACs(); err != nil {
 		return c.result, err
 	}
