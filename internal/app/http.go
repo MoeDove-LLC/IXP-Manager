@@ -909,6 +909,9 @@ func (a *App) resources(w http.ResponseWriter, r *http.Request, user Record, ses
 			if kind == "peers" {
 				delete(s.PeerCredentials, id)
 			}
+			if err := validateResellerFanouts(s); err != nil {
+				return err
+			}
 			if err := validateDocuments(s); err != nil {
 				return err
 			}

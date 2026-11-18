@@ -413,6 +413,9 @@ func validateAll(s *State) error {
 	if err := validateCoreInventoryFlags(s); err != nil {
 		return err
 	}
+	if err := validateResellerFanouts(s); err != nil {
+		return err
+	}
 	if err := validateTrafficInventory(s); err != nil {
 		return err
 	}

@@ -52,6 +52,11 @@ func corePortDependencies(s *State, id string) Record {
 			uses = append(uses, r)
 		}
 	}
+	for _, r := range s.Resources[resellerFanoutKind] {
+		if str(r, "peeringPortId") == id || str(r, "fanoutPortId") == id {
+			uses = append(uses, r)
+		}
+	}
 	for _, r := range s.Resources["patch-ports"] {
 		if str(r, "switchPortId") == id {
 			uses = append(uses, r)
@@ -113,6 +118,11 @@ func corePortBlocked(s *State, id, bundleID string) string {
 	p := find(s, "ports", id)
 	if p == nil {
 		return "physical port not found"
+	}
+	for _, pair := range s.Resources[resellerFanoutKind] {
+		if str(pair, "fanoutPortId") == id {
+			return "reserved as a reseller fanout port"
+		}
 	}
 	if str(p, "memberId") != "" {
 		return "assigned to a member"
