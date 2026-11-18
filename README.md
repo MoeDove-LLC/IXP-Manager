@@ -31,6 +31,8 @@ BIRD 1 的路由服务器和收集器每个实例只填一个本地地址族。I
 
 需要在另一台同架构的 Linux 主机运行时，构建后执行 `make bundle`。将生成的 `dist/moedove-ixp-manager.tar.gz` 解压后运行 `./ixp-manager -data /path/to/instance`。程序会从二进制旁读取前端文件。发布包包含全部 Go 工具和已构建的 UI，目标机可按所用路由或 DNS 平台单独提供原生检查器。升级时将新包解压到独立目录，停止旧进程并创建备份，再用新版 `ixp-backup verify` 检查归档。首次演练可恢复到新目录，确认能以新版启动后再切换。
 
+Linux 主机可以安装发布包内的 systemd 服务。服务使用专用账号、私有数据目录和回环监听，HTTPS 入口由反向代理提供。 [安装、升级与恢复](docs/SYSTEMD-INSTALL.md)
+
 ## 容器
 
 先设置随机 `IXP_SETUP_TOKEN`，再执行 `docker compose up --build`。访问地址同上。容器以非 root 用户运行，数据保存在命名卷。构建定义安装 BIRD 2、FRR、OpenBGPD、BIND 区文件检查器与 PowerDNS Authoritative/BIND backend，供本机离线校验使用；管理服务不启动这些路由或 DNS 守护进程。初始化页面同样需要填写设置令牌。

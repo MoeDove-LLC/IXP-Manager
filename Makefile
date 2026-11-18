@@ -14,9 +14,11 @@ bundle:
 		stage=$$(mktemp -d dist/.bundle.XXXXXXXX); \
 		trap 'rm -rf "$$stage"' EXIT; \
 		release="$$stage/moedove-ixp-manager"; \
-		mkdir -p "$$release/web"; \
+		mkdir -p "$$release/web" "$$release/deploy/systemd" "$$release/docs"; \
 		for command in $(COMMANDS); do install -m 0755 "dist/$$command" "$$release/$$command"; done; \
 		install -m 0644 LICENSE README.md "$$release/"; \
+		install -m 0644 deploy/systemd/moedove-ixp-manager.service deploy/systemd/moedove-ixp-manager.sysusers.conf "$$release/deploy/systemd/"; \
+		install -m 0644 docs/SYSTEMD-INSTALL.md "$$release/docs/"; \
 		cp -R web/dist/. "$$release/web/"; \
 		tar -C "$$stage" -czf "$$stage/release.tar.gz" moedove-ixp-manager; \
 		mv -f "$$stage/release.tar.gz" dist/moedove-ixp-manager.tar.gz

@@ -1,0 +1,32 @@
+[Unit]
+Description=MoeDove IXP Manager
+After=network.target
+
+[Service]
+Type=exec
+User=moedove-ixp-manager
+Group=moedove-ixp-manager
+WorkingDirectory=/opt/moedove-ixp-manager
+StateDirectory=moedove-ixp-manager
+StateDirectoryMode=0700
+RuntimeDirectory=moedove-ixp-manager
+RuntimeDirectoryMode=0700
+Environment=TMPDIR=/run/moedove-ixp-manager
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+EnvironmentFile=-/etc/moedove-ixp-manager/manager.env
+ExecStart=/opt/moedove-ixp-manager/ixp-manager \
+    -listen=127.0.0.1:8080 -secure-cookie \
+    -data=/var/lib/moedove-ixp-manager \
+    -frr=/usr/lib/frr/bgpd -openbgpd=/usr/sbin/bgpd
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=30s
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+# Native FRR and Quagga validation uses unprivileged user and network namespaces.
+
+[Install]
+WantedBy=multi-user.target
