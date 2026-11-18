@@ -181,7 +181,29 @@ func TestLegacyMailingReviewRejectsListEmailAndNewPreferenceChanges(t *testing.T
 					t.Fatal(err)
 				}
 			}
+			beforeAttempt := admin.a.store.Snapshot()
 			w := target.request("POST", "/api/account/mailing-migrations/"+str(mapping, "id")+"/accept", legacyMailingTestAcceptBody(review))
+			if change == "recreated-user" {
+				if w.Code != 401 {
+					t.Fatal("old entity's browser cookie was not rejected at authentication", w.Code)
+				}
+				// Authenticate the replacement entity for real. Matching the old
+				// ID/email must still not transfer its source mapping or review.
+				replacement := docLoginClient(t, admin.a, "current-mailing@example.test", noteTestPassword)
+				current := replacement.ok("GET", "/api/session", nil)["user"].(map[string]any)
+				if current["id"] != session["id"] || str(find(&beforeAttempt, "users", session["id"].(string)), "createdAt") == mapping["targetUserCreatedAt"] {
+					t.Fatal("fixture did not authenticate the same ID as a new account entity")
+				}
+				w = replacement.request("POST", "/api/account/mailing-migrations/"+str(mapping, "id")+"/accept", legacyMailingTestAcceptBody(review))
+				if w.Code != 404 {
+					t.Fatal("replacement entity inherited the old mapping or review", w.Code)
+				}
+				afterAttempt := admin.a.store.Snapshot()
+				if !reflect.DeepEqual(beforeAttempt.MailingLists, afterAttempt.MailingLists) {
+					t.Fatal("rejected old/new entity replay changed mailing preferences")
+				}
+				return
+			}
 			if w.Code != 409 && w.Code != 404 && w.Code != 403 {
 				t.Fatal("changed target accepted stale review", w.Code, w.Body.String())
 			}

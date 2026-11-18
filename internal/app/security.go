@@ -295,7 +295,7 @@ func availableScopes(role string) []string {
 		scopes = append(scopes, "deployments:read", "provisioning:read", "audit:read", "exports:read", "policy:read", "integrations:read", "devices:read", "atlas:read", "core:read")
 	}
 	if role == "admin" || role == "operator" {
-		scopes = append(scopes, "resources:write", "documents:write", "deployments:write", "deployments:pull", "provisioning:write", "provisioning:pull", "monitoring:write", "policy:write", "integrations:write", "devices:write", "looking-glass:run", "sflow:write", "sflow:forward")
+		scopes = append(scopes, "resources:write", "documents:write", "deployments:write", "deployments:pull", "provisioning:write", "provisioning:pull", "monitoring:write", "policy:write", "integrations:write", "devices:write", "looking-glass:run", "sflow:write", "sflow:forward", "contacts:export")
 	}
 	return scopes
 }
@@ -310,6 +310,15 @@ func contains(items []string, v string) bool {
 func bearerScope(r *http.Request) string {
 	read := r.Method == "GET" || r.Method == "HEAD"
 	path := r.URL.Path
+	if path == legacyCustomerSelectionPath && r.Method == http.MethodPost {
+		return "resources:read"
+	}
+	if public, matched := monthlyOverallTrafficRoute(path); matched && !public && r.Method == http.MethodGet {
+		return "resources:read"
+	}
+	if path == "/api/contact-export" && r.Method == "GET" {
+		return "contacts:export"
+	}
 	if _, _, _, _, export := mailingExportRoute(path); export && r.Method == "GET" {
 		return "mailing-lists:read"
 	}

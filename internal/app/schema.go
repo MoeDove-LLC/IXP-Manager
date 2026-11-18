@@ -32,13 +32,21 @@ func num(min, max float64, required bool) Field {
 }
 
 var Schemas = map[string]Schema{
-	"members":             {"name": textField(true), "asn": num(1, 4294967294, true), "status": enum("active", "pending", "suspended"), "email": {Type: "email"}, "website": {Type: "url"}, "notes": textField(false)},
-	"locations":           {"name": textField(true), "city": textField(false), "country": textField(false), "address": textField(false)},
-	"racks":               {"name": textField(true), "locationId": ref("locations", true), "units": num(1, 100, false)},
-	"switches":            {"name": textField(true), "locationId": ref("locations", true), "rackId": ref("racks", false), "managementIp": {Type: "ip"}, "model": textField(false), "vendorId": ref("vendors", false)},
-	"ports":               {"name": textField(true), "switchId": ref("switches", true), "speed": num(1, 10000000, false), "status": enum("active", "inactive"), "memberId": ref("members", false)},
-	"vlans":               {"name": textField(true), "tag": num(1, 4094, true), "ipv4Prefix": {Type: "prefix4"}, "ipv6Prefix": {Type: "prefix6"}, "infrastructureId": ref("infrastructures", false)},
-	"connections":         {"name": textField(true), "memberId": ref("members", true), "portId": ref("ports", false), "portIds": {Type: "references", Ref: "ports"}, "linkMode": enum("single", "lag"), "mtu": num(1280, 9216, false), "vlanId": ref("vlans", true), "ipv4": {Type: "ipv4"}, "ipv6": {Type: "ipv6"}, "speed": num(1, 640000000, false), "status": enum("active", "pending", "disabled", "quarantine")},
+	"members":   {"name": textField(true), "asn": num(1, 4294967294, true), "status": enum("active", "pending", "suspended"), "email": {Type: "email"}, "website": {Type: "url"}, "notes": textField(false)},
+	"locations": {"name": textField(true), "city": textField(false), "country": textField(false), "address": textField(false)},
+	"racks":     {"name": textField(true), "locationId": ref("locations", true), "units": num(1, 100, false)},
+	"switches":  {"name": textField(true), "locationId": ref("locations", true), "rackId": ref("racks", false), "managementIp": {Type: "ip"}, "model": textField(false), "vendorId": ref("vendors", false)},
+	"ports":     {"name": textField(true), "switchId": ref("switches", true), "speed": num(1, 10000000, false), "status": enum("active", "inactive"), "memberId": ref("members", false)},
+	"vlans": {
+		"name": textField(true), "tag": num(1, 4094, true), "ipv4Prefix": {Type: "prefix4"}, "ipv6Prefix": {Type: "prefix6"}, "infrastructureId": ref("infrastructures", false),
+		"legacyRouterIPv4": {Type: "boolean"}, "legacyRouterIPv6": {Type: "boolean"},
+	},
+	"connections": {
+		"name": textField(true), "memberId": ref("members", true), "portId": ref("ports", false), "portIds": {Type: "references", Ref: "ports"},
+		"linkMode": enum("single", "lag"), "mtu": num(1280, 9216, false), "vlanId": ref("vlans", true), "ipv4": {Type: "ipv4"}, "ipv6": {Type: "ipv6"},
+		"speed": num(1, 640000000, false), "status": enum("active", "pending", "disabled", "quarantine"),
+		"legacyRSClientIPv4": {Type: "boolean"}, "legacyRSClientIPv6": {Type: "boolean"},
+	},
 	"routers":             {"name": textField(true), "platform": enum("bird2", "frr", "routeros7", "junos", "bird3", "openbgpd", "cisco", "quagga", "bird1"), "asn": num(1, 4294967294, true), "routerId": {Type: "ipv4", Required: true}, "localIpv4": {Type: "ipv4"}, "localIpv6": {Type: "ipv6"}, "vlanId": ref("vlans", true)},
 	"peers":               {"name": textField(true), "routerId": ref("routers", true), "memberId": ref("members", true), "address": {Type: "ip", Required: true}, "asn": num(1, 4294967294, true), "enabled": {Type: "boolean"}, "maxPrefixes": num(1, 1000000, true), "allowedPrefixes": {Type: "prefixes", Required: true}},
 	"contacts":            {"name": textField(true), "email": {Type: "email", Required: true}, "memberId": ref("members", true), "phone": textField(false), "role": textField(false)},
@@ -62,6 +70,9 @@ var identifier = regexp.MustCompile(`^[A-Za-z0-9_-]{1,100}$`)
 
 func validate(s *State, kind string, r Record) error {
 	if err := validateOwnershipTime(kind, r); err != nil {
+		return err
+	}
+	if err := validateLegacyCustomerEvidence(kind, r); err != nil {
 		return err
 	}
 	schema, ok := Schemas[kind]

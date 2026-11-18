@@ -393,3 +393,9 @@ RouterOS 已确认版本的清理已支持按已验证批次继续。`cleanup --
 Quagga 的真实单播会话状态已接入监控。固定私密 bgpd.vty 与本机 Router ID、ASN 和进程一致，读取原生双栈 unicast summary，仅返回指定邻居。采集器从同一次受限绑定请求获取期望本机身份，管理端入库时再次核对，并保留旧用途的绑定响应形状及成员限定。真实双栈原生观测与控制面角色/身份变化回归通过。实际 `ixp-collector --once` 经 HTTPS 和路由器限定令牌连接真实 Go 管理端。stock Quagga 两族完成 OPEN，真实 IPv4 UPDATE 贡献 1 条前缀，IPv6 已建立且为 0。改动登记的本机 Router ID 后，第二次采集被拒绝且没有上传。10.15 秒原生端到端、Go race、vet 和静态构建通过。证据 `.cache/quagga-monitoring/results.json`。
 
 已重建当前 Linux amd64 便携候选包。冻结 Go 源码、锁匹配的本机前端依赖和原始 Logo，离线 `make bundle` 生成 16 个 CGO0 工具及前端。隔离环境在另一个工作目录实际解包启动，验证初始化密码令牌、登录后重启、Logo 和静态文件精确字节、备份 create/verify 清理临时状态以及 restore 保留成员和加密工件。已核对实际包里的 RouterOS cleanup 参数、Quagga 目标限定和 RFC 2317 安装入口。证据 `.cache/portable-release-current/results.json`。
+
+联系人分组导出已开放专用自动化入口。管理员及操作员可用独立 `contacts:export` 令牌请求精确名称或类型的 JSON/CSV，仍可按成员限定。普通资源和网络导出令牌不能调用此接口，专用令牌不能枚举浏览器选择器、访问其他资源或修改联系人。真实 HTTP 精确字节、权限、撤销、Go race/vet 和前端类型检查通过。证据 `.cache/contact-export-automation/results.json`。
+
+旧 `POST /api/v4/customer/by-vlan-and-protocol` 保留表单及 JSON 查询、IPv4/IPv6 筛选、`listCustomers` 和精确数字编号。转换器从旧接口与同 VLAN 的路由器声明保存查询所需事实。浏览器请求需要 CSRF，令牌需要 `resources:read`，成员请求限当前有效组织。普通编辑保留迁移事实，改变归属或移除地址时移除相应资格。旧源转换、实际 Go 导入和 HTTP 已联合验证。早期 Go 库存中的记录需要回到旧源重新导出转换，在隔离目标审阅，现有库存暂未回填。
+
+旧按月总流量的两个 API 路径已接入。服务对审阅后的 `ixp001` 年度 Grapher 快照校验 SHA-256，从原始五列采样计算最高观测值。响应保留旧字段与已观测零值，缺测月份省略。匿名访问需显式启用，更新快照后需要重启。定向 race、vet、构建和隔离 HTTP 验证通过。 [配置与数据来源](LEGACY-OVERALL-TRAFFIC.md)

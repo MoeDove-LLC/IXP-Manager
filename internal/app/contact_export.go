@@ -232,6 +232,14 @@ type contactExportPayload struct {
 	date  string
 }
 
+func contactExportAuthorized(actor Record, session Session) bool {
+	if !session.API {
+		return noteStaff(actor)
+	}
+	role := str(actor, "role")
+	return (role == "admin" || role == "operator") && contains(session.Scopes, "contacts:export")
+}
+
 // Prepare one consistent, bounded snapshot under the Store lock. Recheck the
 // live session at the end, then release the lock before any response is written.
 func (a *App) prepareContactExport(user Record, session Session, q contactExportQuery) (contactExportPayload, int, error) {
@@ -240,8 +248,11 @@ func (a *App) prepareContactExport(user Record, session Session, q contactExport
 	s := &a.store.state
 	payload := contactExportPayload{date: time.Now().UTC().Format("2006-01-02")}
 	actor, err := a.atlasActor(s, user, session, "admin", "operator", "viewer")
-	if err != nil || a.store.closed || str(actor, "createdAt") != str(user, "createdAt") {
+	if err != nil || a.store.closed || str(actor, "createdAt") != str(user, "createdAt") || !contactExportAuthorized(actor, session) {
 		return payload, 403, errors.New("contact export authority changed; sign in again")
+	}
+	if q.Options && session.API {
+		return payload, 403, errors.New("contact automation must request an explicit group name or type")
 	}
 	if q.Options {
 		options, err := contactOptions(s, actor, payload.date)
@@ -263,7 +274,7 @@ func (a *App) prepareContactExport(user Record, session Session, q contactExport
 		}
 		payload.count = len(rows)
 	}
-	if _, err := a.atlasActor(s, user, session, "admin", "operator", "viewer"); err != nil {
+	if actor, err := a.atlasActor(s, user, session, "admin", "operator", "viewer"); err != nil || !contactExportAuthorized(actor, session) {
 		return contactExportPayload{}, 403, errors.New("contact export session changed; sign in again")
 	}
 	return payload, 200, nil
@@ -273,8 +284,8 @@ func (a *App) contactExportRoutes(w http.ResponseWriter, r *http.Request, user R
 	if r.URL.Path != "/api/contact-export" {
 		return false
 	}
-	if session.API || !noteStaff(user) {
-		problem(w, 403, "contact group exports require a staff browser session")
+	if !contactExportAuthorized(user, session) {
+		problem(w, 403, "contact group exports require staff browser access or a contacts:export token")
 		return true
 	}
 	if r.Method != "GET" {

@@ -193,6 +193,20 @@ func convertWithPeerDrafts(source legacyExport, peerOptions peerDraftOptions) (e
 			c.add("ports", r, o)
 		}
 	}
+	// The PHP customer selector needs existence of an old router row for a
+	// protocol, even when that router cannot become a new executable target.
+	legacyRouterFamilies := map[int64]map[int64]bool{}
+	for _, router := range source.Tables["routers"] {
+		vlan, vlanKnown := c.routerInteger(router, "vlan_id")
+		protocol, protocolKnown := c.routerInteger(router, "protocol")
+		if !vlanKnown || vlan <= 0 || !protocolKnown || protocol != 4 && protocol != 6 {
+			continue
+		}
+		if legacyRouterFamilies[vlan] == nil {
+			legacyRouterFamilies[vlan] = map[int64]bool{}
+		}
+		legacyRouterFamilies[vlan][protocol] = true
+	}
 	for _, r := range source.Tables["vlan"] {
 		o := c.base("vlan", "vlans", r)
 		o["name"] = c.str("vlan", r, "name")
@@ -251,6 +265,12 @@ func convertWithPeerDrafts(source legacyExport, peerOptions peerDraftOptions) (e
 			c.resolve("networkinfo", network)
 		}
 		if c.nameOK("vlan", r, o) {
+			if legacyRouterFamilies[idOf(r)][4] {
+				o["legacyRouterIPv4"] = true
+			}
+			if legacyRouterFamilies[idOf(r)][6] {
+				o["legacyRouterIPv6"] = true
+			}
 			c.add("vlans", r, o)
 		}
 	}
@@ -460,6 +480,20 @@ func (c *converter) connections() {
 			addresses[family+"address"] = a
 		}
 		if valid && c.refsOK("vlaninterface", r, o, "memberId", "vlanId") {
+			// A retained address came from its corresponding enabled flag above.
+			// Preserve only the positive conjunction with explicit RS membership.
+			rsClient, known := c.peerFlag("vlaninterface", r, "rsclient")
+			if !known && r["rsclient"] != nil {
+				c.warn("vlaninterface", r, "rsclient is not an explicit boolean; legacy customer selection evidence omitted")
+			}
+			if rsClient {
+				if o["ipv4"] != nil {
+					o["legacyRSClientIPv4"] = true
+				}
+				if o["ipv6"] != nil {
+					o["legacyRSClientIPv6"] = true
+				}
+			}
 			for i, port := range portRecords {
 				port["memberId"] = o["memberId"]
 				if speeds[i] > 0 {

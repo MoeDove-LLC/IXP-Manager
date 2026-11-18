@@ -32,12 +32,24 @@ func main() {
 	providerConfig := flag.String("provider-config", "", "private local allowlisted external-provider configuration")
 	atlasConfig := flag.String("atlas-config", "", "private RIPE Atlas configuration; omitted disables external measurements")
 	smtpConfig := flag.String("smtp-config", "", "private local SMTP JSON configuration; omitted disables delivery")
+	overallTraffic := flag.String("legacy-overall-traffic", "", "absolute path to a reviewed legacy ixp001 yearly overall traffic snapshot")
+	overallTrafficSHA := flag.String("legacy-overall-traffic-sha256", "", "reviewed SHA-256 of the legacy traffic snapshot")
+	publishOverallTraffic := flag.Bool("publish-legacy-overall-traffic", false, "allow anonymous use of the legacy monthly overall traffic API")
 	secure := flag.Bool("secure-cookie", false, "require HTTPS cookies (enable behind TLS proxy)")
 	flag.Parse()
 	if *documentQuota < 1 {
 		log.Fatal("document-quota must be positive")
 	}
-	a, err := app.New(app.Config{QuaggaBinary: *quagga, Bird1Binary: *bird1, Bird1IPv6Binary: *bird1IPv6, AtlasConfig: *atlasConfig, Bird3Binary: *bird3, OpenBGPDBinary: *openbgpd, NamedCheckzone: *namedCheckzone, PDNSServer: *pdnsServer, ProviderConfig: *providerConfig, TrustedProxies: strings.Split(*trustedProxies, ","), SMTPConfig: *smtpConfig, DataDir: *data, WebDir: *web, BirdBinary: *bird, FRRBinary: *frr, SecureCookie: *secure, DocumentQuota: *documentQuota, SetupToken: os.Getenv("IXP_SETUP_TOKEN")})
+	a, err := app.New(app.Config{
+		DataDir: *data, WebDir: *web, SecureCookie: *secure, DocumentQuota: *documentQuota,
+		SetupToken: os.Getenv("IXP_SETUP_TOKEN"), TrustedProxies: strings.Split(*trustedProxies, ","),
+		BirdBinary: *bird, Bird1Binary: *bird1, Bird1IPv6Binary: *bird1IPv6, Bird3Binary: *bird3,
+		OpenBGPDBinary: *openbgpd, FRRBinary: *frr, QuaggaBinary: *quagga,
+		NamedCheckzone: *namedCheckzone, PDNSServer: *pdnsServer,
+		ProviderConfig: *providerConfig, AtlasConfig: *atlasConfig, SMTPConfig: *smtpConfig,
+		OverallTrafficFile: *overallTraffic, OverallTrafficSHA256: *overallTrafficSHA,
+		PublishOverallTraffic: *publishOverallTraffic,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}

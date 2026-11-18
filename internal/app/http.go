@@ -32,6 +32,8 @@ type Config struct {
 	ProviderConfig                                     string
 	TrustedProxies                                     []string
 	SMTPConfig                                         string
+	OverallTrafficFile, OverallTrafficSHA256           string
+	PublishOverallTraffic                              bool
 	DocumentQuota                                      int64
 	DataDir, WebDir, BirdBinary, FRRBinary, SetupToken string
 	SecureCookie                                       bool
@@ -41,6 +43,7 @@ type App struct {
 	bird1Binary, bird1IPv6Binary                         string
 	logoWork                                             chan struct{}
 	legacyTraffic                                        *traffic.LegacyStore
+	monthlyOverallTraffic                                *monthlyOverallTrafficFeed
 	legacyMu                                             sync.Mutex
 	sflow                                                *sflow.Store
 	sflowMu                                              sync.Mutex
@@ -82,6 +85,10 @@ func New(c Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	monthlyTraffic, err := loadMonthlyOverallTraffic(c.OverallTrafficFile, c.OverallTrafficSHA256, c.PublishOverallTraffic)
+	if err != nil {
+		return nil, err
+	}
 	s, err := OpenStore(c.DataDir)
 	if err != nil {
 		return nil, err
@@ -90,6 +97,7 @@ func New(c Config) (*App, error) {
 		c.SetupToken = token(32)
 	}
 	a := &App{trustedProxies: proxies, store: s, webDir: c.WebDir, birdBinary: c.BirdBinary, frrBinary: c.FRRBinary, setupToken: c.SetupToken, secureCookie: c.SecureCookie, dummyHash: hashPassword(token(32)), sessions: map[string]Session{}, attempts: map[string]attempt{}}
+	a.monthlyOverallTraffic = monthlyTraffic
 	a.logoWork = make(chan struct{}, 2)
 	a.namedCheckzone = c.NamedCheckzone
 	a.pdnsServer = c.PDNSServer
@@ -218,6 +226,9 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	}
 	return true
 }
+
+const legacyCustomerSelectionPath = "/api/v4/customer/by-vlan-and-protocol"
+
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("X-Frame-Options", "DENY")
@@ -233,6 +244,11 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
+	publicMonthlyTraffic, isMonthlyTraffic := monthlyOverallTrafficRoute(r.URL.Path)
+	if isMonthlyTraffic && (publicMonthlyTraffic || a.monthlyOverallTrafficPublished()) {
+		a.serveMonthlyOverallTraffic(w, r, nil, Session{})
+		return
+	}
 	if _, _, public, matched := logoRoute(r.URL.Path); matched && public {
 		a.memberLogoRoutes(w, r, nil, Session{})
 		return
@@ -288,6 +304,14 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			problem(w, 403, "API token scope does not allow this action")
 			return
 		}
+	}
+	if isMonthlyTraffic {
+		a.serveMonthlyOverallTraffic(w, r, user, session)
+		return
+	}
+	if r.URL.Path == legacyCustomerSelectionPath {
+		a.legacyCustomersByVlanAndProtocol(w, r, user, session)
+		return
 	}
 	if r.URL.Path == "/api/notifications" || strings.HasPrefix(r.URL.Path, "/api/notifications/") {
 		a.notifications(w, r, user)
@@ -807,6 +831,9 @@ func (a *App) resources(w http.ResponseWriter, r *http.Request, user Record, ses
 			return err
 		}
 		if err := guardProvisionDNSMutation(s, kind, r.Method, old, body); err != nil {
+			return err
+		}
+		if err := guardLegacyCustomerResourceMutation(kind, r.Method, old, body); err != nil {
 			return err
 		}
 		if err := guardDeviceResourceMutation(s, kind, r.Method, old, body); err != nil {

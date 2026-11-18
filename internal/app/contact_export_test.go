@@ -158,6 +158,24 @@ func TestContactExportStaffSessionAndReadOnlyHTTP(t *testing.T) {
 	if w := bearerRequest(admin.a, str(token, "token"), "GET", path, nil); w.Code != 403 {
 		t.Fatal("generic API token acquired private contact export", w.Code)
 	}
+	automation := admin.ok("POST", "/api/account/tokens", Record{"name": "Explicit contact automation", "currentPassword": "very-long-test-password", "scopes": []string{"contacts:export"}})
+	raw := str(automation, "token")
+	if response := bearerRequest(admin.a, raw, "GET", path, nil); response.Code != 200 || response.Body.String() != w.Body.String() || response.Header().Get("Cache-Control") != "private, no-store" {
+		t.Fatal("scoped automation did not receive the same filtered private export", response.Code)
+	}
+	for _, other := range []string{"/api/contact-export?options=1", "/api/resources/contacts", "/api/export"} {
+		if response := bearerRequest(admin.a, raw, "GET", other, nil); response.Code != 403 {
+			t.Fatal("contact token escaped the selected export boundary", other, response.Code)
+		}
+	}
+	if response := bearerRequest(admin.a, raw, "POST", path, Record{}); response.Code != 403 {
+		t.Fatal("contact token acquired a write operation", response.Code)
+	}
+	item := Record(automation["item"].(map[string]any))
+	admin.ok("DELETE", "/api/account/tokens/"+str(item, "id"), nil)
+	if response := bearerRequest(admin.a, raw, "GET", path, nil); response.Code != 401 || strings.Contains(response.Body.String(), "private-contact@example.test") {
+		t.Fatal("revoked token could still export contact addresses", response.Code)
+	}
 	if w := (&client{a: admin.a, t: t}).request("GET", path, nil); w.Code != 401 {
 		t.Fatal("anonymous contact export", w.Code)
 	}

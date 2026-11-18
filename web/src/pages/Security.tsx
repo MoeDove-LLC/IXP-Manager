@@ -100,6 +100,7 @@ const scopeLabels: Record<string, string> = {
   "policy:read": "读取与模拟路由策略",
   "policy:write": "管理策略快照与白名单",
   "exports:read": "导出网络数据",
+  "contacts:export": "按联系组导出联系人",
   "resources:read": "读取网络资源",
   "resources:write": "修改网络资源",
   "documents:read": "读取文档",
