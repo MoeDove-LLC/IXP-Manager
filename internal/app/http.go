@@ -71,6 +71,7 @@ type App struct {
 	backgroundDone                                       chan struct{}
 	backgroundHealth                                     schedulerHealthState
 	backgroundMu                                         sync.Mutex
+	storageCheckMu                                       sync.Mutex
 	telemetry                                            *telemetry.Store
 	documentQuota                                        int64
 	store                                                *Store
@@ -327,6 +328,10 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.URL.Path == "/api/jobs" || strings.HasPrefix(r.URL.Path, "/api/jobs/") {
 		a.jobs(w, r, user, session)
+		return
+	}
+	if r.URL.Path == storageCheckPath {
+		a.runStorageCheck(w, r, user, session)
 		return
 	}
 	if r.URL.Path == "/api/invitations" || strings.HasPrefix(r.URL.Path, "/api/invitations/") {

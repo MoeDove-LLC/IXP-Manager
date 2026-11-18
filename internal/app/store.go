@@ -96,19 +96,21 @@ type State struct {
 	Deployments              []Deployment             `json:"deployments"`
 }
 type Store struct {
-	revision    uint64
-	closed      bool
-	securityKey []byte
-	mu          sync.RWMutex
-	path        string
-	state       State
-	lock        *os.File
+	revision         uint64
+	closed           bool
+	securityKey      []byte
+	mu               sync.RWMutex
+	path             string
+	state            State
+	lock             *os.File
+	storageDirectory storageDirectoryBinding
 }
 
 func OpenStore(dir string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
+	directory := captureStorageDirectory(dir)
 	lock, err := os.OpenFile(filepath.Join(dir, ".lock"), os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, err
@@ -117,7 +119,7 @@ func OpenStore(dir string) (*Store, error) {
 		lock.Close()
 		return nil, fmt.Errorf("data directory already in use: %w", err)
 	}
-	s := &Store{path: filepath.Join(dir, "state.json"), lock: lock, state: State{Version: 1, Resources: map[string][]Record{}, Settings: Record{"name": "MoeDove IXP", "asn": 0}, Audit: []Audit{}, Deployments: []Deployment{}}}
+	s := &Store{path: filepath.Join(dir, "state.json"), lock: lock, storageDirectory: directory, state: State{Version: 1, Resources: map[string][]Record{}, Settings: Record{"name": "MoeDove IXP", "asn": 0}, Audit: []Audit{}, Deployments: []Deployment{}}}
 	b, err := os.ReadFile(s.path)
 	if err == nil {
 		var loaded State
