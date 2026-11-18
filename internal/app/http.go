@@ -720,10 +720,13 @@ func (a *App) resources(w http.ResponseWriter, r *http.Request, user Record, ses
 		s := a.store.Snapshot()
 		items := visible(&s, kind, user)
 		if kind == "console-connections" && id == "" {
-			if serverID := r.URL.Query().Get("consoleServerId"); serverID != "" {
+			query := r.URL.Query()
+			serverID, memberID := query.Get("consoleServerId"), query.Get("memberId")
+			if serverID != "" || memberID != "" {
 				filtered := []Record{}
 				for _, item := range items {
-					if str(item, "consoleServerId") == serverID {
+					if (serverID == "" || str(item, "consoleServerId") == serverID) &&
+						(memberID == "" || str(item, "memberId") == memberID) {
 						filtered = append(filtered, item)
 					}
 				}
