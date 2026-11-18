@@ -75,22 +75,6 @@ return [
                                         and who do not have an alternative system.',
                 ],
                 
-                'console-server-connection' => [
-                    'config_key' => 'ixp_fe.frontend.disabled.console-server-connection',
-                    'dotenv_key' => 'IXP_FE_FRONTEND_DISABLED_CONSOLE',
-                    'type'       => 'radio',
-                    'invert'     => true,
-                    'rules'      => 'boolean',
-                    'name'       => 'Console Server Connections',
-                    'docs_url'   => 'https://docs.ixpmanager.org/latest/features/console-servers/', // can be null
-                    'help'       => 'An IXP would typically have out-of-band access (for emergencies, firmware upgrades, 
-                                        etc) to critical infrastructure devices by means of a console server. This 
-                                        module allows you to record which equipment console server ports connect to.
-                                        For larger exchanges, a modern DCIM system such as
-                                        <a href="https://netboxlabs.com/dcim/" target="_blank">NetBox</a>
-                                        is recommended.',
-                ],
-
                 'cust-kit'                  => [
                     'config_key' => 'ixp_fe.frontend.disabled.cust-kit',
                     'dotenv_key' => 'IXP_FE_FRONTEND_DISABLED_CUSTKIT',

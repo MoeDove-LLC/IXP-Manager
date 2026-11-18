@@ -126,26 +126,6 @@
                 <span>IXP ADMIN ACTIONS</span>
             </h6>
 
-            <?php if( !config( 'ixp_fe.frontend.disabled.console-server-connection' ) ): ?>
-                <li class="<?= !request()->is( 'admin/console-server/*' ) ?: 'active' ?>">
-                    <a href="<?= route('console-server@list' ) ?>" class="nav-link">
-                        Console Servers
-                    </a>
-                </li>
-            <?php endif; ?>
-
-            <?php if( request()->is( 'admin/console-server/*' ) || request()->is( 'admin/console-server-connection/*' ) ): ?>
-                <?php if( !config( 'ixp_fe.frontend.disabled.console-server-connection', false ) ): ?>
-                    <ul>
-                        <li class="nav-sub-menu-item <?= !request()->is( 'admin/console-server-connection/*' ) ?: 'active' ?>" >
-                            <a href="<?= route('console-server-connection@list' ) ?>" class="nav-link">
-                                Console Server Connections
-                            </a>
-                        </li>
-                    </ul>
-                <?php endif; ?>
-            <?php endif; ?>
-
             <li class="<?= !request()->is( 'admin/interfaces/core-bundle/*' ) ?: 'active' ?>" >
                 <a href="<?= route('core-bundle@list' ) ?>" class="nav-link">
                     Core Bundles

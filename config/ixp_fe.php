@@ -77,12 +77,10 @@ return [
     |
     | e.g.
     |    frontend.disabled.cust-kit = true
-    |    frontend.disabled.console-server-connection = true
     */
     'frontend' => [
         'disabled' => [
             'app-passwords'             => env( 'IXP_FE_FRONTEND_DISABLED_APP_PASSWORD',      false ),
-            'console-server-connection' => env( 'IXP_FE_FRONTEND_DISABLED_CONSOLE',           false ),
             'cust-kit'                  => env( 'IXP_FE_FRONTEND_DISABLED_CUSTKIT',           false ),
             'docstore'                  => env( 'IXP_FE_FRONTEND_DISABLED_DOCSTORE',          false ),
             'docstore_customer'         => env( 'IXP_FE_FRONTEND_DISABLED_DOCSTORE_CUSTOMER', false ),

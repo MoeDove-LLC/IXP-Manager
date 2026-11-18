@@ -86,8 +86,6 @@ use Illuminate\Support\Collection;
  * @property-read int|null $atlas_probes_count
  * @property-read \IXP\Models\CompanyBillingDetail|null $companyBillingDetail
  * @property-read \IXP\Models\CompanyRegisteredDetail|null $companyRegisteredDetail
- * @property-read EloquentCollection<int, \IXP\Models\ConsoleServerConnection> $consoleServerConnections
- * @property-read int|null $console_server_connections_count
  * @property-read EloquentCollection<int, \IXP\Models\Contact> $contacts
  * @property-read int|null $contacts_count
  * @property-read EloquentCollection<int, \IXP\Models\CustomerEquipment> $customerEquipments

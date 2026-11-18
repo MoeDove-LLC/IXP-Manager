@@ -90,9 +90,6 @@ class ControllerEnabled
         // is the controller enabled?
         if( config( 'ixp_fe.frontend.disabled.' . $name, false ) ) {
             $enabled = false;
-        } else if( str_starts_with( $controller, 'ConsoleServer' ) && config( 'ixp_fe.frontend.disabled.console-server-connection', false ) ) {
-            dump('here');
-            $enabled = false;
         }
 
         if( !$enabled ) {

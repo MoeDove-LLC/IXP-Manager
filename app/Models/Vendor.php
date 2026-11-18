@@ -41,8 +41,6 @@ use IXP\Traits\Observable;
  * @property string|null $bundle_name
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \IXP\Models\ConsoleServer> $consoleServers
- * @property-read int|null $console_servers_count
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \IXP\Models\Switcher> $switchers
  * @property-read int|null $switchers_count
  * @method static Builder<static>|Vendor newModelQuery()
@@ -78,16 +76,6 @@ class Vendor extends Model
         'shortname',
         'bundle_name',
     ];
-
-    /**
-     * Get the console servers for the vendor
-     *
-     * @return HasMany<ConsoleServer, Vendor>
-     */
-    public function consoleServers(): HasMany
-    {
-        return $this->hasMany(ConsoleServer::class, 'vendor_id' );
-    }
 
     /**
      * Get the switchers for the vendor

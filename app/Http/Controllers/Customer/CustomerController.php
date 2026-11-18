@@ -489,7 +489,6 @@ class CustomerController extends Controller
                     'customerToUser.user.customers',
                     'customerToUser.userLoginHistories',
                     'contacts.contactRoles',
-                    'consoleServerConnections.consoleServer.cabinet.location',
                     'resoldCustomers', 'irrdbConfig',
                 ] ),
             'customers'                 => Customer::select([ 'id', 'name' ])->current()

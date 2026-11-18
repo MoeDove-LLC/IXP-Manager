@@ -90,8 +90,6 @@ use IXP\Exceptions\GeneralException as IXP_Exception;
  * @property-read int|null $atlas_probes_count
  * @property-read \IXP\Models\CompanyBillingDetail|null $companyBillingDetail
  * @property-read \IXP\Models\CompanyRegisteredDetail|null $companyRegisteredDetail
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \IXP\Models\ConsoleServerConnection> $consoleServerConnections
- * @property-read int|null $console_server_connections_count
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \IXP\Models\Contact> $contacts
  * @property-read int|null $contacts_count
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \IXP\Models\CustomerEquipment> $customerEquipments
@@ -440,16 +438,6 @@ class Customer extends Model
     public function contacts(): HasMany
     {
         return $this->hasMany(Contact::class, 'custid' );
-    }
-
-    /**
-     * Get the console server connections for the customer
-     *
-     * @return HasMany<ConsoleServerConnection, Customer>
-     */
-    public function consoleServerConnections(): HasMany
-    {
-        return $this->hasMany(ConsoleServerConnection::class, 'custid');
     }
 
     /**

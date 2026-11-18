@@ -257,14 +257,6 @@
                     </a>
                 </li>
 
-                <?php if( !config( 'ixp_fe.frontend.disabled.console-server-connection' ) && $c->consoleServerConnections->count() ): ?>
-                    <li role="console-server-connections" class="nav-item ">
-                        <a class="nav-link <?php if( $t->tab === 'console-server-connections' ): ?>active<?php endif; ?>" data-toggle="tab" href="#console-server-connections">
-                            OOB Access
-                        </a>
-                    </li>
-                <?php endif ?>
-
                 <?php if( !config( 'ixp_fe.frontend.disabled.docstore_customer' ) ): ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= route( 'docstore-c-dir@list', [ 'cust' => $c->id ] ) ?>">
@@ -359,10 +351,6 @@
                         <br/>
                         <b>Data loading please wait...</b>
                     </p>
-                </div>
-
-                <div id="console-server-connections" class="tab-pane fade">
-                    <?= $t->insert( 'customer/overview-tabs/console-server-connections' ); ?>
                 </div>
             </div>
         </div>

@@ -61,10 +61,6 @@
                         </li>
 
                         <li>
-                            <b><?= $c->consoleServerConnections()->count() ?></b> console server connections;
-                        </li>
-
-                        <li>
                             <b><?= $c->customerEquipments()->count() ?></b> <?= $t->ee( config( 'ixp_fe.lang.customer.one' ) ) ?> colocated kit entries;
                         </li>
                         <li>

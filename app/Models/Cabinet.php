@@ -46,8 +46,6 @@ use IXP\Traits\Observable;
  * @property int|null $u_counts_from
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
- * @property-read Collection<int, \IXP\Models\ConsoleServer> $consoleServers
- * @property-read int|null $console_servers_count
  * @property-read Collection<int, \IXP\Models\CustomerEquipment> $customerEquipment
  * @property-read int|null $customer_equipment_count
  * @property-read \IXP\Models\Location|null $location
@@ -128,16 +126,6 @@ class Cabinet extends Model
     public function customerEquipment(): HasMany
     {
         return $this->hasMany(CustomerEquipment::class, 'cabinetid' );
-    }
-
-    /**
-     * Get the console servers for the cabinet
-     *
-     * @return HasMany<ConsoleServer, Cabinet>
-     */
-    public function consoleServers(): HasMany
-    {
-        return $this->hasMany(ConsoleServer::class, 'cabinet_id' );
     }
 
     /**
