@@ -195,10 +195,6 @@ use PragmaRX\Google2FALaravel\Support\Authenticator as GoogleAuthenticator;
                         API Keys
                     </a>
 
-                    <a id="active-sessions" class="dropdown-item <?= !request()->is( 'active-sessions/list' ) ?: 'active' ?>" href="<?= route('active-sessions@list' )?>">
-                        Active Sessions
-                    </a>
-
                     <?php $customers = Auth::getUser()->customers()->active()->notDeleted()->get(); ?>
                     <?php if( $customers->count() > 1 ): ?>
                         <div class="dropdown-divider"></div>

@@ -1,5 +1,7 @@
 # 记住设备与保持登录
 
+旧版 `Active Sessions` 已迁至「我的账号 → 账号安全 → 已记住的设备」。原 `/active-sessions/list` 书签可改为 `/#security`。旧版页面、路由和浏览器测试可在原版快照查阅。 [旧版会话管理](https://github.com/MoeDove-LLC/IXP-Manager/blob/8161e185b9a155f6b297f1487a2d0c6ed920e27e/app/Http/Controllers/User/UserRememberTokenController.php)
+
 登录表单中的「记住此设备」是本人明确选择，默认关闭。未启用 MFA 的账号必须通过密码；已启用 MFA 的账号必须同时通过当前验证码或有效的一次性恢复码。密码验证阶段不会先生成记住设备许可。旧 PHP 的 remember cookie、明文 token 和 `is_2fa_complete` 标记都不迁移为可信凭据。
 
 功能只在直连 TLS 或明确启用 `-secure-cookie` 的 HTTPS 反向代理部署中提供。持久 cookie 名称为 `__Host-moedove_remember`，固定 `HttpOnly`、`Secure`、`SameSite=Strict`、`Path=/`，不设置 Domain。前端不读取、复制或保存 cookie/校验值；只调用正常登录和恢复接口。

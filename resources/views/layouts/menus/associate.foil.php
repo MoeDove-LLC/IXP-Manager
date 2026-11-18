@@ -149,10 +149,6 @@ use PragmaRX\Google2FALaravel\Support\Authenticator as GoogleAuthenticator;
                     <a id="profile" class="dropdown-item <?= !request()->is( 'profile' ) ?: 'active' ?>" href="<?= route( 'profile@edit' ) ?>">
                         Profile
                     </a>
-
-                    <a id="active-sessions" class="dropdown-item <?= !request()->is( 'active-sessions/list' ) ?: 'active' ?>" href="<?= route('active-sessions@list' )?>">
-                        Active Sessions
-                    </a>
                 </ul>
             </li>
 

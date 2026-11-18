@@ -54,7 +54,6 @@ IXP\Http\Controllers\VendorController::routes();
 // These are NOT under /admin
 IXP\Http\Controllers\ApiKeyController::routes();
 IXP\Http\Controllers\Contact\ContactController::routes();
-IXP\Http\Controllers\User\UserRememberTokenController::routes();
 
 
 // Not ready for production

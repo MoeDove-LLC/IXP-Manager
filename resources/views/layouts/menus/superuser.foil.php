@@ -157,10 +157,6 @@
                       API Keys
                     </a>
 
-                    <a id="active-sessions" class="dropdown-item <?= !request()->is( 'active-sessions/list' ) ?: 'active' ?>" href="<?= route('active-sessions@list' )?>">
-                        Active Sessions
-                    </a>
-
                     <?php if( !config( 'ixp_fe.frontend.disabled.app-passwords' ) ): ?>
                         <div class="dropdown-divider"></div>
     
