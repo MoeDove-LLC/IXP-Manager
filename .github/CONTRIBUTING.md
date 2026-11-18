@@ -1,45 +1,7 @@
-# How to contribute
+# Contributing to MoeDove IXP Manager
 
-Third-party patches are welcomed for adding functionality, fixing bugs, and just correcting typos on IXP Manager.
+Use `go-rewrite` as the base for Go migration changes. The [README](../README.md) describes the Go and Node toolchains and how to run the application locally. The [migration checklist](../docs/MIGRATION.md) tracks the old workflows and their Go replacements.
 
-We want to keep it as easy as possible to contribute changes, but there are a few guidelines that we 
-need contributors to follow so that we can accept them.
+Build with `make build` and run checks with `make test`. Include any focused regression commands or isolated fixture results in the pull request. Make a separate commit for each independently verifiable change and use `git diff --check` before committing.
 
-
-
-## Getting Started
-
-* Make sure you have a [GitHub account](https://github.com/)
-* Submit a ticket for your issue, assuming one does not already exist.
-  * Clearly describe the issue, including steps to reproduce when it is a bug.
-  * Make sure you fill in the earliest version you know has the issue.
-* Fork the repository on GitHub
-
-## Making Changes
-
-* Create a topic branch from where you want to base your work.
-  * This is usually the master branch.
-  * Only target release branches if you are certain your fix must be on that
-    branch.
-  * To quickly create a topic branch based on master; `git checkout -b
-    fix/master/my_contribution master`. Please avoid working directly on the
-    `master` branch.
-* Make commits of logical units.
-* Check for unnecessary whitespace with `git diff --check` before committing.
-* Make sure your commit messages reference issue numbers where appropriate.
-
-
-## Submitting Changes
-
-* Sign the [Contributor License Agreement](https://docs.ixpmanager.org/latest/dev/cla/) (`gpg --clearsign inex-cla.txt`) and email it to ''operations (at) inex (dot) ie''.
-* Push your changes to a topic branch in your fork of the repository.
-* Submit a pull request to the repository in the inex organisation.
-* Submit a parallel pull request [with new/updated documentation](https://docs.ixpmanager.org/latest/dev/docs/)
-
-# Additional Resources
-
-* [Contributor License Agreement](https://docs.ixpmanager.org/latest/dev/cla/)
-* [General GitHub documentation](http://help.github.com/)
-* [GitHub pull request documentation](http://help.github.com/send-pull-requests/)
-* [IXP Manager Mailing List](https://www.inex.ie/mailman/listinfo/ixpmanager)
-
+Open pull requests against `go-rewrite` in [MoeDove-LLC/IXP-Manager](https://github.com/MoeDove-LLC/IXP-Manager). Describe what changed, how it was verified, and any impact on an existing installation or on migration from the legacy application.

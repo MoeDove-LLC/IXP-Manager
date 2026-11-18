@@ -1,32 +1,16 @@
 ---
 name: Bug report
-about: Create a detailed report to help us improve
-
+about: Report a problem with MoeDove IXP Manager
 ---
 
-<!---
-Verify first that your issue/request is not already reported on GitHub.
+## What happened
 
-Always test if the latest release is affected. Bug reports on older releases cannot be accepted and will be closed.
+Describe the result you observed and the expected behavior.
 
-If you can, we would appreciate it if you could also test against the master branch but this is not necessary.
+## Steps to reproduce
 
-Do not create an issue for requests for help - use the mailing list:
-  See: https://www.ixpmanager.org/support
+List the steps using sample data where possible. Remove credentials and private configuration from logs and screenshots.
 
-NB: Issues that are requests for help will be closed. Please use the mailing list / request commercial support via https://www.ixpmanager.org/commercial
+## Environment
 
-For issues with documentation, please use the following issue tracker:
-  https://github.com/inex/ixp-manager-docs-md/issues
-
-#### Provide system information:
-
-IXP Manager includes a tool which will generate a GitHub Issue template populated with helpful system and installation
-information.
-
-Run `php ./validate.php --github-issue` from your IXP-Manager directory, paste its entire output in as the
-Github Issue body, and fill in the fields for describing + reproducing your issue.
-
-Although we filter sensitive Environment variables from the output, please double-check nothing sensitive is being included.
-
--->
+Include the branch and commit or release, operating system, and how you started the Go application. For a build issue, include `go version` and `node --version`. For a configuration issue, include the platform and corresponding validator version.
