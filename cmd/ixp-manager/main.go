@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -40,6 +41,12 @@ func main() {
 	if *documentQuota < 1 {
 		log.Fatal("document-quota must be positive")
 	}
+	listener, err := net.Listen("tcp", *listen)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer listener.Close()
+
 	a, err := app.New(app.Config{
 		DataDir: *data, WebDir: *web, SecureCookie: *secure, DocumentQuota: *documentQuota,
 		SetupToken: os.Getenv("IXP_SETUP_TOKEN"), TrustedProxies: strings.Split(*trustedProxies, ","),
@@ -67,8 +74,8 @@ func main() {
 		defer cancel()
 		_ = srv.Shutdown(shutdown)
 	}()
-	log.Printf("MoeDove IXP listening on %s", *listen)
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	log.Printf("MoeDove IXP listening on %s", listener.Addr())
+	if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
 }
