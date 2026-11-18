@@ -331,7 +331,79 @@ try {
     .getByRole("dialog")
     .getByText("SERIAL-001", { exact: true })
     .waitFor();
+  assert.equal(await page.getByRole("region", { name: "原系统时间", exact: true }).count(), 0);
   await page.getByRole("button", { name: "关闭详情", exact: true }).click();
+
+  const literalNotes = "# 原系统备注\n<script>window.consoleNoteExecuted=true</script>\n[说明](javascript:alert(1))";
+  const importedServer = {
+    id: "legacy-console-servers-801", name: "Imported source console", locationId: loc.id,
+    hostname: "imported-console.example", notes: literalNotes,
+    legacyTimestamps: { sourceId: "801", createdAt: "2020-08-09 16:20:30", updatedAt: null },
+  };
+  const importedConnection = {
+    id: "legacy-console-connections-802", name: "Imported source serial", consoleServerId: importedServer.id,
+    memberId: member.id, portLabel: "001", description: "Imported equipment description",
+    legacyTimestamps: { sourceId: "802", createdAt: "0000-00-00 00:00:00", updatedAt: "2021-05-06T07:08:09-05:00" },
+  };
+  await api("/import", { version: 1, resources: {
+    "console-servers": [importedServer], "console-connections": [importedConnection],
+  } });
+  await go(`console-servers?id=${importedServer.id}`);
+  await page.getByRole("button", { name: `查看控制台记录 ${importedServer.name}`, exact: true }).click();
+  const sourceTimes = page.getByRole("region", { name: "原系统时间", exact: true });
+  await sourceTimes.getByText("2020-08-09 16:20:30", { exact: true }).waitFor();
+  await sourceTimes.getByText("源记录为空", { exact: true }).waitFor();
+  assert.equal(await sourceTimes.locator("input,textarea,button").count(), 0);
+  assert.ok((await page.getByRole("dialog").textContent()).includes(literalNotes));
+  assert.equal(await page.getByRole("dialog").locator("script,a[href^='javascript:']").count(), 0);
+  assert.equal(await page.evaluate(() => window.consoleNoteExecuted), undefined);
+  await page.getByRole("button", { name: "关闭详情", exact: true }).click();
+  await page.getByRole("button", { name: `编辑 ${importedServer.name}`, exact: true }).click();
+  assert.equal(await page.getByRole("dialog").getByRole("region", { name: "原系统时间", exact: true }).count(), 0);
+  await page.locator("#field-model").fill("Corrected inventory model");
+  const updateSource = page.waitForRequest(request => new URL(request.url()).pathname === `/api/resources/console-servers/${importedServer.id}` && request.method() === "PUT");
+  const correctedSource = await saveForm("console-servers", "PUT");
+  assert.equal(Object.hasOwn((await updateSource).postDataJSON(), "legacyTimestamps"), false);
+  assert.deepEqual(correctedSource.legacyTimestamps, importedServer.legacyTimestamps);
+  await go(`console-connections?id=${importedConnection.id}`);
+  await page.getByRole("button", { name: `查看控制台记录 ${importedConnection.name}`, exact: true }).click();
+  await sourceTimes.getByText("2021-05-06T07:08:09-05:00", { exact: true }).waitFor();
+  await sourceTimes.getByText("0000-00-00 00:00:00（原系统零值，时间不可用）", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "关闭详情", exact: true }).click();
+
+  const otherMember = await api("/resources/members", { name: "Other console owner", asn: 64511, status: "active" });
+  const foreignConnection = await api("/resources/console-connections", {
+    name: "Other member serial", consoleServerId: server.id, memberId: otherMember.id, portLabel: "02",
+  });
+  await go("members");
+  const memberLoad = page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.pathname === "/api/resources/console-connections" && url.searchParams.get("memberId") === member.id;
+  });
+  await page.getByRole("link", { name: `控制台接入 ${member.name}`, exact: true }).click();
+  const memberRows = (await (await memberLoad).json()).items;
+  assert.ok(memberRows.length > 0 && memberRows.every(item => item.memberId === member.id));
+  await page.getByRole("button", { name: `查看控制台记录 ${importedConnection.name}`, exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: `查看控制台记录 ${foreignConnection.name}`, exact: true }).count(), 0);
+  const importedRow = page.getByRole("row").filter({ has: page.getByRole("button", { name: `查看控制台记录 ${importedConnection.name}`, exact: true }) });
+  await importedRow.getByRole("cell", { name: "Imported equipment description", exact: true }).waitFor();
+  await importedRow.getByRole("cell", { name: "Console DC", exact: true }).waitFor();
+  await importedRow.getByRole("cell", { name: importedServer.name, exact: true }).waitFor();
+  await importedRow.getByRole("cell", { name: "001", exact: true }).waitFor();
+  await page.locator(".page-heading").getByRole("button", { name: "新增控制台连接", exact: true }).click();
+  assert.equal(await page.locator("#field-memberId").inputValue(), member.id);
+  await page.getByRole("dialog").getByRole("button", { name: "取消", exact: true }).click();
+
+  await go(`console-connections?memberId=${member.id}&consoleServerId=${server.id}`);
+  await page.getByRole("button", { name: `查看控制台记录 ${connection.name}`, exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: `查看控制台记录 ${importedConnection.name}`, exact: true }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: `查看控制台记录 ${foreignConnection.name}`, exact: true }).count(), 0);
+  await page.locator(".page-heading").getByRole("button", { name: "新增控制台连接", exact: true }).click();
+  assert.equal(await page.locator("#field-memberId").inputValue(), member.id);
+  assert.equal(await page.locator("#field-consoleServerId").inputValue(), server.id);
+  await page.getByRole("dialog").getByRole("button", { name: "取消", exact: true }).click();
+  console.log("Console source timestamps / safe plain-text notes / immutable editor / member jump and intersecting filters passed");
+
   for (const [role, email] of [
     ["viewer", "console-viewer@example.test"],
     ["member", "console-member@example.test"],
@@ -389,6 +461,8 @@ try {
         0,
       );
     } else {
+      await rolePage.goto(base + "/#members");
+      await rolePage.getByRole("link", { name: `控制台接入 ${member.name}`, exact: true }).click();
       await rolePage
         .getByRole("button", {
           name: `查看控制台记录 ${connection.name}`,
@@ -408,6 +482,7 @@ try {
     }
     await ctx.close();
   }
+  await go(`console-connections?memberId=${member.id}`);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.evaluate(
@@ -424,8 +499,9 @@ try {
   );
   await page.screenshot({ path: "/tmp/moedove-console-mobile.png" });
   await page
-    .getByRole("button", { name: `查看控制台记录 ${server.name}`, exact: true })
+    .getByRole("button", { name: `查看控制台记录 ${importedConnection.name}`, exact: true })
     .click();
+  await sourceTimes.waitFor();
   assert.equal(
     await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth,

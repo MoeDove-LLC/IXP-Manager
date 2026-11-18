@@ -157,6 +157,8 @@ export const resources: Record<string, Resource> = Object.fromEntries(
 export const fieldLabel = (kind: string, key: string) =>
   kind === "console-servers" && key === "connectionCount"
     ? "关联接入"
+    : kind === "console-connections" && key === "locationName"
+      ? "数据中心"
     : (resources[kind]?.fields.find((field) => field.key === key)?.label ??
       key);
 export const statusLabels: Record<string, string> = {

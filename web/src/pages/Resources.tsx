@@ -1,5 +1,6 @@
 import { useHashParameters } from "@/lib/hash-route";
 import AS112Guidance from "@/components/AS112Guidance";
+import ConsoleSourceTimes from "@/components/ConsoleSourceTimes";
 import {
   lazy,
   Suspense,
@@ -278,6 +279,13 @@ export default function Resources({
     kind === "console-connections"
       ? (routeParameters.get("consoleServerId") ?? "")
       : "";
+  const consoleMemberFilter =
+    kind === "console-connections"
+      ? (routeParameters.get("memberId") ?? "")
+      : "";
+  const columns = consoleMemberFilter
+    ? ["name", "description", "locationName", "consoleServerId", "portLabel", "autobaud"]
+    : schema.columns;
   const isConsole = ["console-servers", "console-connections"].includes(kind);
   const isFanout = kind === "reseller-fanouts";
   const [fanoutRefreshing, setFanoutRefreshing] = useState(false);
@@ -322,6 +330,7 @@ export default function Resources({
       deploymentRequired: boolean;
     } | null>(null);
   const conflictRequest = useRef(0);
+  const loadRequest = useRef(0);
   const fanoutRequest = useRef(0);
   useEffect(() => () => { fanoutRequest.current++; }, [kind, role]);
   useEffect(() => { setWelcomeMember(null); }, [kind, role, targetId]);
@@ -430,22 +439,30 @@ export default function Resources({
     return () => controller.abort();
   }, [kind]);
   const load = async () => {
+    const request = ++loadRequest.current;
+    const contextCurrent = captureSessionContext();
+    const requestCurrent = () => !isConsole || (request === loadRequest.current && contextCurrent());
     setLoading(true);
     setError("");
     try {
       const related = relatedKinds(kind, schema.fields);
+      const parameters = new URLSearchParams();
+      if (consoleFilter) parameters.set("consoleServerId", consoleFilter);
+      if (consoleMemberFilter) parameters.set("memberId", consoleMemberFilter);
+      const query = parameters.size ? `?${parameters}` : "";
       const results = await Promise.all([
-        api<{ items: Row[] }>(`/resources/${kind}`),
+        api<{ items: Row[] }>(`/resources/${kind}${query}`),
         ...related.map((k) => api<{ items: Row[] }>(`/resources/${k}`)),
       ]);
+      if (!requestCurrent()) return;
       setRows(results[0].items);
       setRefs(
         Object.fromEntries(related.map((k, i) => [k, results[i + 1].items])),
       );
     } catch (e) {
-      setError(message(e));
+      if (requestCurrent()) setError(message(e));
     } finally {
-      setLoading(false);
+      if (requestCurrent()) setLoading(false);
     }
   };
   const refreshFanoutOptions = async () => {
@@ -471,7 +488,9 @@ export default function Resources({
     setSearch("");
     setOpen(false);
     setDeleting(null);
-  }, [kind]);
+    setConsoleDetail(null);
+    return () => { loadRequest.current++; };
+  }, [kind, consoleFilter, consoleMemberFilter]);
   const display = (r: Row, key: string) => {
     const field = schema.fields.find((f) => f.key === key),
       value = r[key];
@@ -555,10 +574,11 @@ export default function Resources({
     .filter(
       (r) =>
         (!targetId || r.id === targetId) &&
-        (!consoleFilter || r.consoleServerId === consoleFilter),
+        (!consoleFilter || r.consoleServerId === consoleFilter) &&
+        (!consoleMemberFilter || r.memberId === consoleMemberFilter),
     )
     .filter((r) =>
-      schema.columns.some((k) =>
+      columns.some((k) =>
         display(r, k).toLowerCase().includes(search.toLowerCase()),
       ),
     );
@@ -567,6 +587,7 @@ export default function Resources({
     setEditing(row ? structuredClone(row) : null);
     const next = resourceForm(kind, schema.fields, row);
     if (!row && consoleFilter) next.consoleServerId = consoleFilter;
+    if (!row && consoleMemberFilter) next.memberId = consoleMemberFilter;
     setForm(next);
     setFormError("");
     setFormNotice("");
@@ -805,8 +826,8 @@ export default function Resources({
       : null;
   const exportCSV = () => {
     const csv = [
-      schema.columns.map((k) => fieldLabel(kind, k)),
-      ...filtered.map((r) => schema.columns.map((k) => display(r, k))),
+      columns.map((k) => fieldLabel(kind, k)),
+      ...filtered.map((r) => columns.map((k) => display(r, k))),
     ]
       .map((row) =>
         row
@@ -862,13 +883,16 @@ export default function Resources({
       {isFanout && (
         <p className="notice mb-4">此处只登记本地配线库存，不推断 VLAN、地址或 BGP 关联，也不操作设备。编辑可替换所选端口；释放只解除本条库存关系。</p>
       )}
-      {consoleFilter && (
+      {(consoleFilter || consoleMemberFilter) && (
         <div className="notice mb-4 flex flex-wrap items-center justify-between gap-2">
           <span>
-            关联接入：
-            {refs["console-servers"]?.find((item) => item.id === consoleFilter)
-              ?.name ?? consoleFilter}
-            。删除服务器前需先处理这些记录。
+            {consoleMemberFilter && <>
+              成员控制台接入：{refs.members?.find((item) => item.id === consoleMemberFilter)?.name ?? consoleMemberFilter}。
+            </>}
+            {consoleFilter && <>
+              关联服务器：{refs["console-servers"]?.find((item) => item.id === consoleFilter)?.name ?? consoleFilter}。
+              删除服务器前需先处理这些记录。
+            </>}
           </span>
           <Button
             variant="outline"
@@ -963,8 +987,8 @@ export default function Resources({
           <Loading />
         ) : !rows.length ? (
           <Empty
-            title={isFanout ? "暂无经销商分流记录" : `添加第一个${schema.singular}`}
-            description={isFanout ? "先维护成员的直属经销商与实际接入，再登记左侧接入端口和右侧经销商端口。" : `在这里维护${schema.label}信息。保存的记录会用于关联配置与后续运维。`}
+            title={isFanout ? "暂无经销商分流记录" : consoleMemberFilter || consoleFilter ? "此范围暂无控制台接入" : `添加第一个${schema.singular}`}
+            description={isFanout ? "先维护成员的直属经销商与实际接入，再登记左侧接入端口和右侧经销商端口。" : consoleMemberFilter || consoleFilter ? "可登记对应设备、串口与归属；库存记录不建立远程终端会话。" : `在这里维护${schema.label}信息。保存的记录会用于关联配置与后续运维。`}
             action={canWrite ? `新增${schema.singular}` : undefined}
             onAction={() => edit()}
           />
@@ -975,7 +999,7 @@ export default function Resources({
             <table>
               <thead>
                 <tr>
-                  {schema.columns.map((k) => (
+                  {columns.map((k) => (
                     <th key={k}>{fieldLabel(kind, k)}</th>
                   ))}
                   {canWrite && <th className="text-right">操作</th>}
@@ -987,7 +1011,7 @@ export default function Resources({
                     key={r.id}
                     className={r.id === targetId ? "bg-primary/5" : undefined}
                   >
-                    {schema.columns.map((k, i) => (
+                    {columns.map((k, i) => (
                       <td
                         key={k}
                         className={
@@ -1020,6 +1044,15 @@ export default function Resources({
                             >
                               查看成员 Logo
                             </button>
+                            {["admin", "operator", "viewer"].includes(role) && (
+                              <a
+                                className="ml-3 text-xs text-primary hover:underline"
+                                aria-label={`控制台接入 ${r.name}`}
+                                href={`#console-connections?memberId=${encodeURIComponent(r.id)}`}
+                              >
+                                控制台接入
+                              </a>
+                            )}
                             {role === "admin" && (
                               <button
                                 className="ml-3 text-xs text-primary hover:underline"
@@ -1648,6 +1681,7 @@ export default function Resources({
                     </span>
                   </div>
                 ))}
+            <ConsoleSourceTimes value={consoleDetail?.legacyTimestamps} />
           </div>
           <div className="flex justify-end">
             <Button variant="outline" onClick={() => setConsoleDetail(null)}>
