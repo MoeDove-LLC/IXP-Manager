@@ -238,6 +238,53 @@ const createInvite = async (page, email, memberId) => {
   await page.getByRole("dialog").waitFor({ state: "hidden" });
 };
 
+const checkSchedulerHealth = async (page) => {
+  await go(page, "notifications");
+  const panel = page.getByRole("region", { name: "后台调度", exact: true });
+  const refresh = page.getByRole("button", { name: "刷新", exact: true });
+  await panel.getByText("运行中", { exact: true }).waitFor();
+  const live = await json(page, "/jobs");
+  assert.equal(live.scheduler.status, "running");
+  assert.ok(live.scheduler.lastCompletedAt, "the real manager must have completed a background cycle");
+  assert.equal(live.scheduler.stallAfterSeconds, 600);
+
+  await page.route("**/api/jobs", async (route) => {
+    const response = await route.fetch();
+    const observation = await response.json();
+    const old = new Date(Date.parse(observation.checkedAt) - 11 * 60_000).toISOString();
+    await route.fulfill({
+      response,
+      json: {
+        ...observation,
+        scheduler: {
+          ...observation.scheduler, status: "stalled", startedAt: old,
+          lastCompletedAt: old, cycleStartedAt: old, currentPhase: "mail",
+        },
+        items: observation.items.map((job) => job.kind === "cleanup"
+          ? { ...job, status: "running", health: "lease-expired", leaseUntil: old }
+          : { ...job, health: "overdue", nextRunAt: old }),
+      },
+    });
+  }, { times: 1 });
+  await refresh.click();
+  await panel.getByText("调度停滞", { exact: true }).waitFor();
+  const cleanup = page.locator('[data-job-kind="cleanup"]');
+  await cleanup.getByText("执行租约已过期", { exact: true }).waitFor();
+  assert.equal(await cleanup.getByRole("button", { name: "提交执行", exact: true }).isEnabled(), true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "scheduler panel must fit 390px viewport");
+  if (process.env.SCHEDULER_SCREENSHOT) await panel.screenshot({ path: process.env.SCHEDULER_SCREENSHOT });
+
+  await page.route("**/api/jobs", (route) => route.fulfill({ status: 503, json: { error: "计划任务暂不可用（测试）" } }), { times: 1 });
+  await refresh.click();
+  await panel.getByText("读取失败，以下仅为上次快照。", { exact: true }).waitFor();
+  assert.equal(await panel.getByText("调度停滞", { exact: true }).count(), 0, "failed refresh must not present old state as current");
+  await refresh.click();
+  await panel.getByText("运行中", { exact: true }).waitFor();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  console.log("PASS actual Go scheduler heartbeat, browser stalled/expired-lease presentation, failed-poll invalidation and 390px layout");
+};
+
 const migrateLegacyAccount = async (page, memberA, memberB) => {
   const email = "migrated-member@example.test";
   const sourceUser = "9007199254740993";
@@ -358,6 +405,7 @@ try {
   });
   await go(page, "notifications");
   await page.getByText("未启用邮件投递", { exact: true }).waitFor();
+  await checkSchedulerHealth(page);
   await go(page, "invitations");
   await page.getByRole("button", { name: "邀请用户", exact: true }).click();
   await page.getByLabel("受邀邮箱", { exact: true }).fill("never@example.test");
