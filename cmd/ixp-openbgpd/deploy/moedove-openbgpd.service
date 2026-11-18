@@ -1,0 +1,27 @@
+[Unit]
+Description=MoeDove dedicated OpenBGPD instance
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/moedove-openbgpd/bgpd.conf
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=root
+ExecStartPre=/usr/sbin/bgpd -n -f /etc/moedove-openbgpd/bgpd.conf
+ExecStart=/usr/sbin/bgpd -d -f /etc/moedove-openbgpd/bgpd.conf
+Restart=always
+RestartSec=2
+KillMode=control-group
+RuntimeDirectory=moedove-openbgpd
+RuntimeDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/run/moedove-openbgpd
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,252 @@
+{
+  "tables": {
+    "cust": [
+      {
+        "id": 1,
+        "name": "Example member",
+        "autsys": 64496,
+        "status": 1,
+        "peeringemail": "noc@example.net",
+        "corpwww": "https://example.net",
+        "type": 1,
+        "datejoin": "2020-01-02 00:00:00",
+        "company_registered_detail_id": 1,
+        "company_billing_details_id": 1,
+        "shortname": "EXAMPLE",
+        "nocphone": "+1234",
+        "isReseller": 1
+      },
+      {
+        "id": 2,
+        "name": "关联伙伴",
+        "type": 2,
+        "autsys": 0,
+        "status": 1,
+        "peeringemail": "partner@example.net",
+        "datejoin": "2021-02-03"
+      }
+    ],
+    "location": [
+      {
+        "id": 1,
+        "name": "Example DC",
+        "country": "ZZ",
+        "city": "Example",
+        "address": "Example street"
+      }
+    ],
+    "cabinet": [
+      {
+        "id": 1,
+        "name": "Rack A",
+        "locationid": 1,
+        "height": 42
+      }
+    ],
+    "switch": [
+      {
+        "id": 1,
+        "name": "sw-a",
+        "cabinetid": 1,
+        "model": "Example",
+        "ipv4addr": "192.0.2.2",
+        "vendorid": 1,
+        "serialNumber": "SERIAL-001"
+      }
+    ],
+    "switchport": [
+      {
+        "id": 1,
+        "name": "eth1",
+        "switchid": 1,
+        "ifHighSpeed": 10000,
+        "active": 1
+      }
+    ],
+    "vlan": [
+      {
+        "id": 1,
+        "name": "Peering LAN",
+        "number": 100
+      }
+    ],
+    "networkinfo": [
+      {
+        "id": 1,
+        "vlanid": 1,
+        "protocol": 4,
+        "network": "192.0.2.0",
+        "masklen": 24
+      },
+      {
+        "id": 2,
+        "vlanid": 1,
+        "protocol": 6,
+        "network": "2001:db8::",
+        "masklen": 64
+      }
+    ],
+    "contact": [
+      {
+        "id": 1,
+        "name": "NOC",
+        "email": "noc@example.net",
+        "phone": "",
+        "custid": 1
+      }
+    ],
+    "virtualinterface": [
+      {
+        "id": 1,
+        "name": "Member uplink",
+        "custid": 1
+      }
+    ],
+    "physicalinterface": [
+      {
+        "id": 1,
+        "virtualinterfaceid": 1,
+        "switchportid": 1,
+        "speed": 10000,
+        "status": 1
+      }
+    ],
+    "vlaninterface": [
+      {
+        "id": 1,
+        "virtualinterfaceid": 1,
+        "vlanid": 1,
+        "ipv4enabled": 1,
+        "ipv6enabled": 1,
+        "ipv4addressid": 1,
+        "ipv6addressid": 1
+      }
+    ],
+    "ipv4address": [
+      {
+        "id": 1,
+        "vlanid": 1,
+        "address": "192.0.2.10"
+      },
+      {
+        "id": 2,
+        "vlanid": 1,
+        "address": "192.0.2.20"
+      }
+    ],
+    "ipv6address": [
+      {
+        "id": 1,
+        "vlanid": 1,
+        "address": "2001:db8::10"
+      }
+    ],
+    "company_registration_detail": [
+      {
+        "id": 1,
+        "registeredName": "示例网络有限公司",
+        "companyNumber": "REG-001",
+        "jurisdiction": "CN",
+        "address1": "第一行地址",
+        "address2": "第二行地址",
+        "townCity": "Shanghai",
+        "postcode": "200000",
+        "country": "CN",
+        "notes": "Registered notes"
+      }
+    ],
+    "company_billing_detail": [
+      {
+        "id": 1,
+        "billingContactName": "财务联系人",
+        "billingAddress1": "Billing lane",
+        "billingTownCity": "Shanghai",
+        "billingPostcode": "200000",
+        "billingCountry": "CN",
+        "billingEmail": "billing@example.net",
+        "billingTelephone": "+5678",
+        "vatNumber": "VAT-001",
+        "vatRate": "23.5",
+        "purchaseOrderRequired": 1,
+        "purchaseOrderNumber": "PO-001",
+        "invoiceMethod": "EMAIL",
+        "invoiceEmail": "invoice@example.net",
+        "billingFrequency": "MONTHLY",
+        "notes": "Billing notes"
+      }
+    ],
+    "cust_tag": [
+      {
+        "id": 1,
+        "tag": "internal",
+        "display_as": "内部",
+        "description": "Staff only",
+        "internal_only": 1
+      },
+      {
+        "id": 2,
+        "tag": "public",
+        "description": "Member visible",
+        "internal_only": 0
+      }
+    ],
+    "cust_to_cust_tag": [
+      {
+        "customer_id": 1,
+        "customer_tag_id": 1
+      },
+      {
+        "customer_id": 1,
+        "customer_tag_id": 2
+      }
+    ],
+    "cust_notes": [
+      {
+        "id": 1,
+        "customer_id": 1,
+        "title": "Private note",
+        "note": "line1\r\nline2",
+        "private": 1
+      },
+      {
+        "id": 2,
+        "customer_id": 1,
+        "title": "Member note",
+        "note": "Visible to member",
+        "private": 0
+      }
+    ],
+    "contact_group": [
+      {
+        "id": 1,
+        "name": "Billing",
+        "description": "Billing contacts",
+        "type": "ROLE",
+        "active": 1,
+        "limited_to": 0
+      }
+    ],
+    "contact_to_group": [
+      {
+        "contact_id": 1,
+        "contact_group_id": 1
+      }
+    ],
+    "vendor": [
+      {
+        "id": 1,
+        "name": "Vendor",
+        "shortname": "V",
+        "bundle_name": "bundle"
+      }
+    ],
+    "custkit": [
+      {
+        "id": 1,
+        "name": "IXP-owned device",
+        "cabinetid": 1,
+        "descr": "Inventory device"
+      }
+    ]
+  }
+}

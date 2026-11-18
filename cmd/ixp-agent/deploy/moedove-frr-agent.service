@@ -1,0 +1,31 @@
+[Unit]
+Description=MoeDove FRR configuration watchdog
+Documentation=file:/usr/share/doc/moedove-ixp/FRR-WATCHDOG.md
+After=frr.service
+Requires=frr.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=frr
+Group=frr
+SupplementaryGroups=frrvty
+ExecStart=/usr/local/bin/ixp-agent serve --platform frr --target /etc/frr/bgpd.conf --state-dir /var/lib/moedove-frr --socket /run/moedove-frr/agent.sock --validator /usr/lib/frr/bgpd --reload /usr/lib/frr/frr-reload.py --vtysh /usr/bin/vtysh --vty-socket /run/frr
+KillMode=control-group
+Restart=always
+RestartSec=2
+TimeoutStopSec=110
+RuntimeDirectory=moedove-frr
+RuntimeDirectoryMode=0700
+StateDirectory=moedove-frr
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/etc/frr /var/lib/moedove-frr /run/moedove-frr
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

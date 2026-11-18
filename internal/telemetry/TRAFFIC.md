@@ -1,0 +1,43 @@
+# Counter-derived long-term statistics
+
+`Store.Ingest` remains the single durable entry point. A version-2 journal event contains a monotonically increasing sequence, receive time and the complete frozen batch. The same event derives the raw point and its 5-minute, hourly and daily rows. There is no second best-effort rollup writer and no daily job that reads an already-trimmed raw window.
+
+Compaction writes private immutable gzip partitions, syncs them and their directory, publishes a snapshot containing their hashes and the applied sequence, syncs the snapshot directory, then truncates the journal. A crash before publication leaves removable orphan files; a crash after publication leaves an already-applied journal prefix, which the sequence skips even if all corresponding raw points have expired. An I/O failure poisons the writer until restart. Closed Store instances cannot query or mutate a replacement instance.
+
+The existing raw limits remain 24 hours, 2,880 points per series and 100,000 points overall. Archive retention ceilings are 90 days for 5-minute rows, 400 days for hourly rows and 3,653 days for daily rows. Fine/hour partitions are UTC day plus 64/16 physical-port hash shards. Daily partitions are UTC month plus 64 shards. Partial expired months may remain physically present, but queries filter expired rows.
+
+The published compressed partition budget is 768 MiB. The archive directory has a hard 2-GiB limit, reserving the difference for atomic replacement while the previous checkpoint still exists. There are at most 20,000 referenced files; a partition is at most 16 MiB compressed and 64 MiB decoded. Under pressure, whole oldest fine partitions are removed first, then hourly and daily partitions. Retention periods are ceilings, not a promise of a full window. The returned `retainedFrom` combines the selected attribution's first observed bucket with the current tier retention boundary. It does not assert uninterrupted coverage. `latestAt` is an actual sampled timestamp, never a bucket's end.
+
+## Arithmetic and attribution
+
+Counters and totals use canonical unsigned decimal strings. Each interval is connected only across equal source, physical port, member generation, ownership revision, counter epoch and frozen inventory dimensions, with unchanged counter width and link speed. Intervals shorter than one second or longer than 120 seconds do not contribute rates or totals. Counter decreases normally mean reset. A single wrap is recognized only near the numeric endpoints; 32-bit counters additionally require a known speed that excludes multiple wraps. The Counter32 octet inference assumes that the declared speed is a valid maximum counter-growth rate and rejects deltas outside that bound. Counter64 octet differences are not limited by inventory speed. Optional counter directions can be independently unavailable.
+
+An unchanged observed counter contributes the integer `"0"`. A missing, reset, ambiguous or excessive-gap interval contributes no total (`null` at the query boundary). Archive times are normalized to millisecond precision, matching the integer coverage fields. Cross-UTC-bin intervals are distributed uniformly using integer arithmetic; the final fragment receives the remainder so every retention tier conserves the original delta. `uniformAllocation` marks that assumption. Valid/reset/wrap/gap counts count **bucket-local interval fragments**, so a cross-boundary interval can occur in more than one bucket's count.
+
+The frozen key contains physical port, switch, rack, location, infrastructure, member generation and core bundle/link/side. Up to 256 actual connection IDs can be frozen on a shared physical port; exceeding that limit rejects ingestion instead of dropping attribution. Connection queries explicitly remain physical-port totals and can include other VLANs. No address-family, VLAN or peer traffic split is inferred from interface counters. Core-bundle queries require side `a` or `b` to avoid counting the same inter-switch traffic twice.
+
+`MemberID`, `MemberRevision` and `OwnershipRevision` query restrictions apply **before aggregation**. Member queries require the frozen member generation. Version-1 data is not enriched using today's owner table; attribution without a generation remains staff-only. `TrafficTargets` reads this frozen catalog and returns historical IDs, first/last observations and source IDs, including deleted inventory. It never relabels them with a current owner's name. The catalog is bounded at 20,000 attribution cohorts; output is bounded at 10,000 targets and reports truncation.
+
+## Rates and query bounds
+
+Queries require UTC-aligned boundaries and at most 5,000 output buckets. Each query decodes at most 512 MiB and collects at most 500,000 matching rows; broader work must be split or narrowed. Totals stay exact; rates are floating-point presentation values.
+
+For a physical port, average rate is valid delta divided by valid interval time. Its maximum is a sampled interval maximum; `peakResolutionSeconds` reports the winning interval's duration (the larger duration if the two directions have different winning intervals). It is not an instantaneous peak.
+
+For a group, the caller supplies a trusted `ExpectedPortIDs` set. `coveredMillis` and `expectedMillis` are **port-milliseconds**, summed across expected physical ports. Group average and maximum are calculated only for aligned buckets fully covered by every expected port. `rateCoveredMillis` is the wall-clock duration of those complete buckets. A group maximum is the largest sum of that same bucket's port averages, never the sum of independent port maxima. If no bucket is complete, rates remain `null` even when partial observed totals exist. A missing expected-port set cannot establish whole-group coverage and therefore produces no group rates.
+
+## Backup and validation
+
+`ListFiles(dir) ([]string, error)` and `ValidateFiles(dir) error` are read-only. They validate regular files, checksum references, compressed/decoded bounds, partition placement and journal frames. An incomplete final WAL frame is recoverable and is not modified by these functions. `ListFiles` returns paths relative to the telemetry directory: `snapshot.json`, `journal.bin`, and the exact referenced `archive/*.json.gz` files. It excludes `.lock`, temporary files and unreferenced files. Backup must quiesce the writer; copying a live mutable journal and checkpoint independently is not a coherent backup.
+
+Legacy MRTG rolling windows, RRD rate rows, P2P daily totals and sampled sFlow estimates are separate sources. They must retain original units/windows/timezones and owner evidence; they are not accepted as live counter deltas. `traffic.LegacyReport` reserves that typed boundary and does not itself implement an importer.
+
+Focused validation:
+
+```sh
+go test -race ./internal/traffic ./internal/telemetry
+```
+
+IF-MIB packet semantics follow [RFC 2863](https://www.rfc-editor.org/rfc/rfc2863.html): output unicast/multicast/broadcast counts include higher-layer transmission requests that may be discarded or never sent. Consequently packet/event Counter64 values are not capped by physical line speed. Counter32 packet/event rates cannot use line speed to prove absence of hidden wraps; without a separately verified maximum event rate their exact totals and rates remain unavailable. Under the same epoch and without an identified reset, the modulo-32 difference is retained as a conditional `lowerBoundTotal`, with `ambiguousIntervals`; it may omit one or more complete wraps. The lower bound includes any independently exact portion in that bucket and must never be added to `total` again. Ordinary decreasing-counter reset detection and epoch/width changes produce no lower bound. Bounds are uniformly split across UTC bins with conserved integer sums; ambiguous directions never produce rates. Raw counters and an independently available HC64 direction remain available. `CounterPair.inBits`/`outBits` independently override `bits`; a zero override inherits `bits`, whose zero default is 64. Only the direction whose effective width changes is reset.
+
+Counter-derived byte rates are interface-counter rates, not proof of successful wire throughput. Linux [`tx_bytes` and `tx_packets`](https://docs.kernel.org/networking/statistics.html#struct-rtnl-link-stats64) can count data handed to a device before successful transmission. A stale nominal inventory speed or queued submission burst therefore does not invalidate an otherwise valid Counter64 delta. Counter32 octet wrap inference remains conditional on its configured speed bound; it is not a universal claim about all interface counter implementations.

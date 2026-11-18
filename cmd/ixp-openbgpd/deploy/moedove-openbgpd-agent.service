@@ -1,0 +1,28 @@
+[Unit]
+Description=MoeDove OpenBGPD configuration watchdog
+After=moedove-openbgpd.service
+Wants=moedove-openbgpd.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/ixp-openbgpd serve --exclusive-instance --target /etc/moedove-openbgpd/bgpd.conf --state-dir /var/lib/moedove-openbgpd --socket /run/moedove-openbgpd-agent/agent.sock --bgpd /usr/sbin/bgpd --bgpctl /usr/sbin/bgpctl
+Restart=always
+RestartSec=2
+KillMode=control-group
+TimeoutStopSec=110
+RuntimeDirectory=moedove-openbgpd-agent
+RuntimeDirectoryMode=0700
+StateDirectory=moedove-openbgpd
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/etc/moedove-openbgpd /var/lib/moedove-openbgpd /run/moedove-openbgpd-agent
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

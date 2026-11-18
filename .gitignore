@@ -136,3 +136,17 @@ http-client.private.env.json
 
 
 
+# MoeDove Go application build output and private state
+/var/
+/dist/
+/.cache/
+/web/node_modules/
+/web/dist/
+/web/*.tsbuildinfo
+*.test
+__pycache__/
+*.py[cod]
+
+# Private backups contain encrypted account state and its key.
+/backups/
+*.ixp-backup.tar.gz

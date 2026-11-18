@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "parent": {
+    "zone": "2.0.192.in-addr.arpa.",
+    "snapshotSHA256": "29b50405eb3401425dd755c042297e6c822a71ffe2aae2ecf9c56d22e139e319",
+    "observedSerial": 41,
+    "ttl": 3600,
+    "delegation": {
+      "owner": "128-131.2.0.192.in-addr.arpa.",
+      "state": "absent"
+    },
+    "owners": [
+      {
+        "owner": "128.2.0.192.in-addr.arpa.",
+        "state": "absent"
+      },
+      {
+        "owner": "129.2.0.192.in-addr.arpa.",
+        "state": "absent"
+      },
+      {
+        "owner": "130.2.0.192.in-addr.arpa.",
+        "state": "absent"
+      },
+      {
+        "owner": "131.2.0.192.in-addr.arpa.",
+        "state": "absent"
+      }
+    ]
+  },
+  "childZone": "128-131.2.0.192.in-addr.arpa.",
+  "first": 128,
+  "last": 131,
+  "newChildZone": true,
+  "previousChildSerial": null,
+  "dns": {
+    "prefix": "192.0.2.128/30",
+    "primaryNS": "ns1.example.test.",
+    "responsibleMailbox": "hostmaster.example.test.",
+    "nameServers": [
+      "ns1.example.test.",
+      "ns2.example.test."
+    ],
+    "serial": 2026111801
+  },
+  "ptrs": [
+    {
+      "address": "192.0.2.129",
+      "name": "host1.customer.example.test."
+    },
+    {
+      "address": "192.0.2.130",
+      "name": "host2.customer.example.test."
+    }
+  ]
+}

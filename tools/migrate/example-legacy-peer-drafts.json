@@ -1,0 +1,202 @@
+{
+  "tables": {
+    "cust": [
+      {
+        "id": 1,
+        "name": "Example member",
+        "autsys": 64496,
+        "status": 1,
+        "peeringemail": "noc@example.net",
+        "corpwww": "https://example.net",
+        "type": 1,
+        "datejoin": "2020-01-01",
+        "dateleave": null,
+        "maxprefixes": 1000,
+        "maxprefixesv6": 2000
+      }
+    ],
+    "location": [
+      {
+        "id": 1,
+        "name": "Example DC",
+        "country": "ZZ",
+        "city": "Example",
+        "address": "Example street"
+      }
+    ],
+    "cabinet": [
+      {
+        "id": 1,
+        "name": "Rack A",
+        "locationid": 1,
+        "height": 42
+      }
+    ],
+    "switch": [
+      {
+        "id": 1,
+        "name": "sw-a",
+        "cabinetid": 1,
+        "model": "Example",
+        "ipv4addr": "192.0.2.2"
+      }
+    ],
+    "switchport": [
+      {
+        "id": 1,
+        "name": "eth1",
+        "switchid": 1,
+        "ifHighSpeed": 10000,
+        "active": 1
+      }
+    ],
+    "vlan": [
+      {
+        "id": 1,
+        "name": "Peering LAN",
+        "number": 100
+      }
+    ],
+    "networkinfo": [
+      {
+        "id": 1,
+        "vlanid": 1,
+        "protocol": 4,
+        "network": "192.0.2.0",
+        "masklen": 24
+      },
+      {
+        "id": 2,
+        "vlanid": 1,
+        "protocol": 6,
+        "network": "2001:db8::",
+        "masklen": 64
+      }
+    ],
+    "contact": [
+      {
+        "id": 1,
+        "name": "NOC",
+        "email": "noc@example.net",
+        "phone": "",
+        "custid": 1
+      }
+    ],
+    "virtualinterface": [
+      {
+        "id": 1,
+        "name": "Member uplink",
+        "custid": 1
+      }
+    ],
+    "physicalinterface": [
+      {
+        "id": 1,
+        "virtualinterfaceid": 1,
+        "switchportid": 1,
+        "speed": 10000,
+        "status": 1
+      }
+    ],
+    "vlaninterface": [
+      {
+        "id": 1,
+        "virtualinterfaceid": 1,
+        "vlanid": 1,
+        "ipv4enabled": 1,
+        "ipv6enabled": 1,
+        "ipv4addressid": 1,
+        "ipv6addressid": 1,
+        "rsclient": 1,
+        "ipv4maxbgpprefix": 150,
+        "ipv6maxbgpprefix": null,
+        "ipv4monitorrcbgp": 0,
+        "ipv6monitorrcbgp": 0
+      }
+    ],
+    "ipv4address": [
+      {
+        "id": 1,
+        "vlanid": 1,
+        "address": "192.0.2.10"
+      }
+    ],
+    "ipv6address": [
+      {
+        "id": 1,
+        "vlanid": 1,
+        "address": "2001:db8::10"
+      }
+    ],
+    "routers": [
+      {
+        "id": 501,
+        "vlan_id": 1,
+        "name": "Explicit peer-draft source router 1",
+        "software": "6",
+        "protocol": 4,
+        "type": 1,
+        "router_id": "192.0.2.101",
+        "peering_ip": "192.0.2.1",
+        "asn": 64510,
+        "quarantine": 0,
+        "rpki": 0,
+        "bgp_lc": 0,
+        "rfc1997_passthru": 0,
+        "skip_md5": 0,
+        "template": "api/v4/router/server/bird2/standard"
+      },
+      {
+        "id": 502,
+        "vlan_id": 1,
+        "name": "Explicit peer-draft source router 2",
+        "software": "1",
+        "protocol": 6,
+        "type": 1,
+        "router_id": "192.0.2.102",
+        "peering_ip": "2001:db8::2",
+        "asn": 64510,
+        "quarantine": 0,
+        "rpki": 0,
+        "bgp_lc": 0,
+        "rfc1997_passthru": 0,
+        "skip_md5": 0,
+        "template": "api/v4/router/server/bird/standard"
+      },
+      {
+        "id": 503,
+        "vlan_id": 1,
+        "name": "Explicit peer-draft source router 3",
+        "software": "1",
+        "protocol": 4,
+        "type": 2,
+        "router_id": "192.0.2.103",
+        "peering_ip": "192.0.2.3",
+        "asn": 64510,
+        "quarantine": 0,
+        "rpki": 0,
+        "bgp_lc": 0,
+        "rfc1997_passthru": 0,
+        "skip_md5": 0,
+        "template": "api/v4/router/collector/bird/standard"
+      },
+      {
+        "id": 504,
+        "vlan_id": 1,
+        "name": "Explicit peer-draft source router 4",
+        "software": "6",
+        "protocol": 6,
+        "type": 2,
+        "router_id": "192.0.2.104",
+        "peering_ip": "2001:db8::4",
+        "asn": 64510,
+        "quarantine": 0,
+        "rpki": 0,
+        "bgp_lc": 0,
+        "rfc1997_passthru": 0,
+        "skip_md5": 0,
+        "template": "api/v4/router/collector/bird2/standard"
+      }
+    ]
+  }
+}

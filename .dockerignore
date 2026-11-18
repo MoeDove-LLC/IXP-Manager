@@ -1,0 +1,12 @@
+.git
+node_modules
+web/node_modules
+web/dist
+var
+dist
+.cache
+.env*
+*.sql
+*.sql.gz
+vendor
+storage

@@ -1,0 +1,17 @@
+[
+  {
+    "id": 101,
+    "cust_id": 42,
+    "day": "2024-06-01",
+    "category": "bits",
+    "day_avg_in": "1250",
+    "day_avg_out": null,
+    "day_max_in": "2000",
+    "day_max_out": "NaN",
+    "day_tot_in": "9007199254740993",
+    "day_tot_out": null,
+    "week_tot_in": "18014398509481986",
+    "month_tot_in": "27021597764222979",
+    "year_tot_in": "36028797018963972"
+  }
+]

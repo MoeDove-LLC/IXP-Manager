@@ -1,0 +1,688 @@
+{
+  "tables": {
+    "cust": [
+      {
+        "id": 1,
+        "name": "Example member",
+        "autsys": 64496,
+        "status": 1,
+        "peeringemail": "noc@example.net",
+        "corpwww": "https://example.net"
+      },
+      {
+        "id": 2,
+        "name": "IXP internal",
+        "autsys": 0,
+        "type": 3,
+        "status": 1
+      }
+    ],
+    "location": [
+      {
+        "id": 1,
+        "name": "Example DC",
+        "country": "ZZ",
+        "city": "Example",
+        "address": "Example street"
+      }
+    ],
+    "cabinet": [
+      {
+        "id": 1,
+        "name": "Rack A",
+        "locationid": 1,
+        "height": 42
+      }
+    ],
+    "switch": [
+      {
+        "id": 1,
+        "name": "sw-a",
+        "cabinetid": 1,
+        "model": "Example",
+        "ipv4addr": "192.0.2.2",
+        "asn": 64510,
+        "loopback_ip": "10.255.0.1",
+        "loopback_name": "Loopback0",
+        "active": 1
+      },
+      {
+        "id": 2,
+        "name": "sw-b",
+        "cabinetid": 1,
+        "model": "Example B",
+        "ipv4addr": "192.0.2.3",
+        "asn": 64520,
+        "loopback_ip": "10.255.0.2",
+        "loopback_name": "lo0",
+        "active": 0
+      }
+    ],
+    "switchport": [
+      {
+        "id": 1,
+        "name": "eth1",
+        "switchid": 1,
+        "ifHighSpeed": 10000,
+        "active": 1
+      },
+      {
+        "id": 10,
+        "name": "core1-0-0",
+        "switchid": 1,
+        "type": 3,
+        "active": 1,
+        "ifHighSpeed": 10000
+      },
+      {
+        "id": 11,
+        "name": "core1-0-1",
+        "switchid": 2,
+        "type": 3,
+        "active": 1,
+        "ifHighSpeed": 10000
+      },
+      {
+        "id": 12,
+        "name": "core1-1-0",
+        "switchid": 1,
+        "type": 3,
+        "active": 1,
+        "ifHighSpeed": 10000
+      },
+      {
+        "id": 13,
+        "name": "core1-1-1",
+        "switchid": 2,
+        "type": 3,
+        "active": 1,
+        "ifHighSpeed": 10000
+      },
+      {
+        "id": 14,
+        "name": "core2-0-0",
+        "switchid": 1,
+        "type": 3,
+        "active": 1,
+        "ifHighSpeed": 10000
+      },
+      {
+        "id": 15,
+        "name": "core2-0-1",
+        "switchid": 2,
+        "type": 3,
+        "active": 1,
+        "ifHighSpeed": 10000
+      },
+      {
+        "id": 16,
+        "name": "core2-1-0",
+        "switchid": 1,
+        "type": 3,
+        "active": 1,
+        "ifHighSpeed": 10000
+      },
+      {
+        "id": 17,
+        "name": "core2-1-1",
+        "switchid": 2,
+        "type": 3,
+        "active": 1,
+        "ifHighSpeed": 10000
+      },
+      {
+        "id": 18,
+        "name": "core3-0-0",
+        "switchid": 1,
+        "type": 3,
+        "active": 1,
+        "ifHighSpeed": 10000
+      },
+      {
+        "id": 19,
+        "name": "core3-0-1",
+        "switchid": 2,
+        "type": 3,
+        "active": 1,
+        "ifHighSpeed": 10000
+      },
+      {
+        "id": 20,
+        "name": "core3-1-0",
+        "switchid": 1,
+        "type": 3,
+        "active": 1,
+        "ifHighSpeed": 10000
+      },
+      {
+        "id": 21,
+        "name": "core3-1-1",
+        "switchid": 2,
+        "type": 3,
+        "active": 1,
+        "ifHighSpeed": 10000
+      },
+      {
+        "id": 99,
+        "name": "reserved-core",
+        "switchid": 1,
+        "type": 3,
+        "active": 1
+      }
+    ],
+    "vlan": [
+      {
+        "id": 1,
+        "name": "Peering LAN",
+        "number": 100
+      }
+    ],
+    "networkinfo": [
+      {
+        "id": 1,
+        "vlanid": 1,
+        "protocol": 4,
+        "network": "192.0.2.0",
+        "masklen": 24
+      },
+      {
+        "id": 2,
+        "vlanid": 1,
+        "protocol": 6,
+        "network": "2001:db8::",
+        "masklen": 64
+      }
+    ],
+    "contact": [
+      {
+        "id": 1,
+        "name": "NOC",
+        "email": "noc@example.net",
+        "phone": "",
+        "custid": 1
+      }
+    ],
+    "virtualinterface": [
+      {
+        "id": 1,
+        "name": "Member uplink",
+        "custid": 1
+      },
+      {
+        "id": 10,
+        "custid": 2,
+        "name": null,
+        "description": "Core side 0\nretained description",
+        "mtu": 64000,
+        "trunk": 1,
+        "channelgroup": null,
+        "lag_framing": 0,
+        "fastlacp": 0,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 11,
+        "custid": 2,
+        "name": null,
+        "description": "Core side 1\nretained description",
+        "mtu": 64000,
+        "trunk": 0,
+        "channelgroup": null,
+        "lag_framing": 0,
+        "fastlacp": 1,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 20,
+        "custid": 2,
+        "name": "Port-Channel20",
+        "description": "Core side 0\nretained description",
+        "mtu": 9000,
+        "trunk": 1,
+        "channelgroup": 0,
+        "lag_framing": 1,
+        "fastlacp": 0,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 21,
+        "custid": 2,
+        "name": "Port-Channel21",
+        "description": "Core side 1\nretained description",
+        "mtu": 9200,
+        "trunk": 0,
+        "channelgroup": 21,
+        "lag_framing": 1,
+        "fastlacp": 1,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 30,
+        "custid": 2,
+        "name": "ae30",
+        "description": "Core side 0\nretained description",
+        "mtu": 9000,
+        "trunk": 1,
+        "channelgroup": 30,
+        "lag_framing": 0,
+        "fastlacp": 0,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 31,
+        "custid": 2,
+        "name": "ae31",
+        "description": "Core side 1\nretained description",
+        "mtu": 9200,
+        "trunk": 0,
+        "channelgroup": 31,
+        "lag_framing": 0,
+        "fastlacp": 1,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      }
+    ],
+    "physicalinterface": [
+      {
+        "id": 1,
+        "virtualinterfaceid": 1,
+        "switchportid": 1,
+        "speed": 10000,
+        "status": 1
+      },
+      {
+        "id": 100,
+        "switchportid": 10,
+        "virtualinterfaceid": 10,
+        "status": 1,
+        "speed": 40000,
+        "duplex": "full",
+        "autoneg": 0,
+        "rate_limit": 0,
+        "notes": "  retained indentation\nsecond line\n",
+        "fanout_physical_interface_id": null,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 101,
+        "switchportid": 11,
+        "virtualinterfaceid": 11,
+        "status": 2,
+        "speed": 10000,
+        "duplex": "full",
+        "autoneg": 1,
+        "rate_limit": 5000,
+        "notes": "  retained indentation\nsecond line\n",
+        "fanout_physical_interface_id": null,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 102,
+        "switchportid": 12,
+        "virtualinterfaceid": 10,
+        "status": 3,
+        "speed": 10000,
+        "duplex": "full",
+        "autoneg": 0,
+        "rate_limit": 0,
+        "notes": "  retained indentation\nsecond line\n",
+        "fanout_physical_interface_id": null,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 103,
+        "switchportid": 13,
+        "virtualinterfaceid": 11,
+        "status": 4,
+        "speed": 10000,
+        "duplex": "full",
+        "autoneg": 1,
+        "rate_limit": 5000,
+        "notes": "  retained indentation\nsecond line\n",
+        "fanout_physical_interface_id": null,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 200,
+        "switchportid": 14,
+        "virtualinterfaceid": 20,
+        "status": 1,
+        "speed": 10000,
+        "duplex": "half",
+        "autoneg": 0,
+        "rate_limit": 0,
+        "notes": "  retained indentation\nsecond line\n",
+        "fanout_physical_interface_id": null,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 201,
+        "switchportid": 15,
+        "virtualinterfaceid": 21,
+        "status": 2,
+        "speed": 10000,
+        "duplex": "full",
+        "autoneg": 1,
+        "rate_limit": 5000,
+        "notes": "  retained indentation\nsecond line\n",
+        "fanout_physical_interface_id": null,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 202,
+        "switchportid": 16,
+        "virtualinterfaceid": 20,
+        "status": 3,
+        "speed": 10000,
+        "duplex": "full",
+        "autoneg": 0,
+        "rate_limit": 0,
+        "notes": "  retained indentation\nsecond line\n",
+        "fanout_physical_interface_id": null,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 203,
+        "switchportid": 17,
+        "virtualinterfaceid": 21,
+        "status": 4,
+        "speed": 10000,
+        "duplex": "full",
+        "autoneg": 1,
+        "rate_limit": 5000,
+        "notes": "  retained indentation\nsecond line\n",
+        "fanout_physical_interface_id": null,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 300,
+        "switchportid": 18,
+        "virtualinterfaceid": 30,
+        "status": 1,
+        "speed": 10000,
+        "duplex": "full",
+        "autoneg": 0,
+        "rate_limit": 0,
+        "notes": "  retained indentation\nsecond line\n",
+        "fanout_physical_interface_id": null,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 301,
+        "switchportid": 19,
+        "virtualinterfaceid": 31,
+        "status": 2,
+        "speed": 10000,
+        "duplex": "full",
+        "autoneg": 1,
+        "rate_limit": 5000,
+        "notes": "  retained indentation\nsecond line\n",
+        "fanout_physical_interface_id": null,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 302,
+        "switchportid": 20,
+        "virtualinterfaceid": 30,
+        "status": 3,
+        "speed": 10000,
+        "duplex": "full",
+        "autoneg": 0,
+        "rate_limit": 0,
+        "notes": "  retained indentation\nsecond line\n",
+        "fanout_physical_interface_id": null,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 303,
+        "switchportid": 21,
+        "virtualinterfaceid": 31,
+        "status": 4,
+        "speed": 10000,
+        "duplex": "full",
+        "autoneg": 1,
+        "rate_limit": 5000,
+        "notes": "  retained indentation\nsecond line\n",
+        "fanout_physical_interface_id": null,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      }
+    ],
+    "vlaninterface": [
+      {
+        "id": 1,
+        "virtualinterfaceid": 1,
+        "vlanid": 1,
+        "ipv4enabled": 1,
+        "ipv6enabled": 1,
+        "ipv4addressid": 1,
+        "ipv6addressid": 1
+      }
+    ],
+    "ipv4address": [
+      {
+        "id": 1,
+        "vlanid": 1,
+        "address": "192.0.2.10"
+      }
+    ],
+    "ipv6address": [
+      {
+        "id": 1,
+        "vlanid": 1,
+        "address": "2001:db8::10"
+      }
+    ],
+    "corebundles": [
+      {
+        "id": 10,
+        "description": "Core mode 1",
+        "graph_title": "Core graph 1",
+        "type": 1,
+        "enabled": 1,
+        "bfd": 0,
+        "stp": 0,
+        "cost": 0,
+        "preference": 0,
+        "ipv4_subnet": null,
+        "ipv6_subnet": null,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 20,
+        "description": "Core mode 2",
+        "graph_title": "Core graph 2",
+        "type": 2,
+        "enabled": 1,
+        "bfd": 0,
+        "stp": 1,
+        "cost": null,
+        "preference": 0,
+        "ipv4_subnet": null,
+        "ipv6_subnet": null,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 30,
+        "description": "Core mode 3",
+        "graph_title": "Core graph 3",
+        "type": 3,
+        "enabled": 0,
+        "bfd": 1,
+        "stp": 0,
+        "cost": null,
+        "preference": 200,
+        "ipv4_subnet": "10.0.2.0/31",
+        "ipv6_subnet": "fd00:30::/127",
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      }
+    ],
+    "corelinks": [
+      {
+        "id": 100,
+        "core_bundle_id": 10,
+        "enabled": 1,
+        "bfd": 1,
+        "ipv4_subnet": "10.0.0.0/31",
+        "ipv6_subnet": "fd00:10::/127",
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00",
+        "core_interface_sidea_id": 1000,
+        "core_interface_sideb_id": 1001
+      },
+      {
+        "id": 101,
+        "core_bundle_id": 10,
+        "enabled": 0,
+        "bfd": 1,
+        "ipv4_subnet": "10.0.0.2/31",
+        "ipv6_subnet": "fd00:10::2/127",
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00",
+        "core_interface_sidea_id": 1002,
+        "core_interface_sideb_id": 1003
+      },
+      {
+        "id": 200,
+        "core_bundle_id": 20,
+        "enabled": 1,
+        "bfd": 0,
+        "ipv4_subnet": null,
+        "ipv6_subnet": null,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00",
+        "core_interface_sidea_id": 2000,
+        "core_interface_sideb_id": 2001
+      },
+      {
+        "id": 201,
+        "core_bundle_id": 20,
+        "enabled": 0,
+        "bfd": 0,
+        "ipv4_subnet": null,
+        "ipv6_subnet": null,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00",
+        "core_interface_sidea_id": 2002,
+        "core_interface_sideb_id": 2003
+      },
+      {
+        "id": 300,
+        "core_bundle_id": 30,
+        "enabled": 1,
+        "bfd": 0,
+        "ipv4_subnet": null,
+        "ipv6_subnet": null,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00",
+        "core_interface_sidea_id": 3000,
+        "core_interface_sideb_id": 3001
+      },
+      {
+        "id": 301,
+        "core_bundle_id": 30,
+        "enabled": 0,
+        "bfd": 0,
+        "ipv4_subnet": null,
+        "ipv6_subnet": null,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00",
+        "core_interface_sidea_id": 3002,
+        "core_interface_sideb_id": 3003
+      }
+    ],
+    "coreinterfaces": [
+      {
+        "id": 1000,
+        "physical_interface_id": 100,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 1001,
+        "physical_interface_id": 101,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 1002,
+        "physical_interface_id": 102,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 1003,
+        "physical_interface_id": 103,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 2000,
+        "physical_interface_id": 200,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 2001,
+        "physical_interface_id": 201,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 2002,
+        "physical_interface_id": 202,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 2003,
+        "physical_interface_id": 203,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 3000,
+        "physical_interface_id": 300,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 3001,
+        "physical_interface_id": 301,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 3002,
+        "physical_interface_id": 302,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 3003,
+        "physical_interface_id": 303,
+        "created_at": "2018-01-01 00:00:00",
+        "updated_at": "2020-01-01 00:00:00"
+      }
+    ]
+  }
+}

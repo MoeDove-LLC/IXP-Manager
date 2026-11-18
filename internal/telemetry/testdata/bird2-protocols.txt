@@ -1,0 +1,19 @@
+BIRD 2.17.5 ready.
+Name       Proto      Table      State  Since         Info
+peer_a     BGP        ---        up     12:30:00.123   Established
+  BGP state:          Established
+    Neighbor address: 192.0.2.2
+    Neighbor AS:      64513
+  Channel ipv4
+    State:          UP
+    Routes:         12 imported, 4 exported, 12 preferred
+  Channel ipv6
+    State:          UP
+    Routes:         3 imported, 1 exported, 3 preferred
+peer_b     BGP        ---        start  12:31:00.000   Active        Socket: Connection refused
+  BGP state:          Active
+    Neighbor address: 192.0.2.3
+    Neighbor AS:      64514
+  Channel ipv4
+    State:          DOWN
+device1    Device     ---        up     12:00:00.000

@@ -1,0 +1,16 @@
+{
+  "tables": {
+    "vlan": [{ "id": 1, "name": "Example peering LAN", "number": 100 }],
+    "networkinfo": [
+      { "id": 1, "vlanid": 1, "protocol": 4, "network": "192.0.2.0", "masklen": 24 },
+      { "id": 2, "vlanid": 1, "protocol": 6, "network": "2001:db8::", "masklen": 64 }
+    ],
+    "routers": [
+      { "id": 1, "pair_id": 2, "vlan_id": 1, "handle": "rs1-v4", "name": "BIRD 1 IPv4 instance", "protocol": 4, "type": 1, "software": "1", "router_id": "192.0.2.254", "peering_ip": "192.0.2.1", "asn": 64510, "quarantine": 0, "rpki": 0, "bgp_lc": 0, "skip_md5": 0, "pause_updates": 1, "rfc1997_passthru": 0 },
+      { "id": 2, "pair_id": 1, "vlan_id": 1, "handle": "rs1-v6", "name": "BIRD 1 IPv6 instance", "protocol": 6, "type": 1, "software": "1", "router_id": "192.0.2.253", "peering_ip": "2001:db8::1", "asn": 64510, "quarantine": 0, "rpki": 0, "bgp_lc": 0, "skip_md5": 0, "pause_updates": 1, "rfc1997_passthru": 0 },
+      { "id": 3, "vlan_id": 1, "name": "BIRD 2 collector inventory", "protocol": 4, "type": 2, "software": "6", "router_id": "192.0.2.252", "peering_ip": "192.0.2.3", "asn": 64511, "quarantine": 0, "rpki": 0, "bgp_lc": 0, "skip_md5": 0, "rfc1997_passthru": 0 },
+      { "id": 4, "vlan_id": 1, "name": "Cisco route-server inventory only", "protocol": 6, "type": 1, "software": "5", "router_id": "192.0.2.251", "peering_ip": "2001:db8::4", "asn": 64512, "quarantine": 0, "rpki": 0, "bgp_lc": 0, "skip_md5": 0, "rfc1997_passthru": 0 },
+      { "id": 5, "vlan_id": 1, "name": "AS112 needs separate review", "protocol": 4, "type": 3, "software": "6", "router_id": "192.0.2.112", "peering_ip": "192.0.2.112", "asn": 112, "quarantine": 0, "rpki": 0, "bgp_lc": 0, "skip_md5": 0 }
+    ]
+  }
+}

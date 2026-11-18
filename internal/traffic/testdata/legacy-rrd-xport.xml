@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+
+<xport>
+  <meta>
+    <start>1704067500</start>
+    <end>1704068100</end>
+    <step>300</step>
+    <rows>3</rows>
+    <columns>2</columns>
+    <legend>
+      <entry>in-average</entry>
+      <entry>out-average</entry>
+    </legend>
+  </meta>
+  <data>
+    <row><t>1704067500</t><v>3.0000000000e+01</v><v>NaN</v></row>
+    <row><t>1704067800</t><v>5.0000000000e+01</v><v>6.0000000000e+01</v></row>
+    <row><t>1704068100</t><v>7.0000000000e+01</v><v>8.0000000000e+01</v></row>
+  </data>
+</xport>

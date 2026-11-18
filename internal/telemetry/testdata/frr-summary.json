@@ -1,0 +1,1 @@
+{"ipv4Unicast":{"routerId":"192.0.2.1","as":64512,"peers":{"192.0.2.2":{"remoteAs":64513,"state":"Established","pfxRcd":15},"192.0.2.3":{"remoteAs":64514,"state":"Active","pfxRcd":0}}},"ipv6Unicast":{"peers":{"2001:0db8:0:0:0:0:0:2":{"remoteAs":64515,"state":"Established","pfxRcd":7}}}}

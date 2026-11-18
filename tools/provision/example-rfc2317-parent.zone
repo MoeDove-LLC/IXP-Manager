@@ -1,0 +1,6 @@
+; Synthetic RFC2317 parent example only; not a live zone.
+$ORIGIN 2.0.192.in-addr.arpa.
+$TTL 3600
+@ IN SOA ns.parent.example.test. hostmaster.parent.example.test. ( 41 3600 600 604800 300 )
+@ IN NS ns.parent.example.test.
+10 IN PTR unrelated.customer.example.test.

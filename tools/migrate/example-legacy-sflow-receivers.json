@@ -1,0 +1,213 @@
+{
+  "tables": {
+    "cust": [
+      {
+        "id": 1,
+        "name": "Example member",
+        "autsys": 64496,
+        "status": 1,
+        "peeringemail": "noc@example.net",
+        "corpwww": "https://example.net"
+      }
+    ],
+    "location": [
+      {
+        "id": 1,
+        "name": "Example DC",
+        "country": "ZZ",
+        "city": "Example",
+        "address": "Example street"
+      }
+    ],
+    "cabinet": [
+      {
+        "id": 1,
+        "name": "Rack A",
+        "locationid": 1,
+        "height": 42
+      }
+    ],
+    "switch": [
+      {
+        "id": 1,
+        "name": "sw-a",
+        "cabinetid": 1,
+        "model": "Example",
+        "ipv4addr": "192.0.2.2"
+      },
+      {
+        "id": 2,
+        "name": "sw-b",
+        "cabinetid": 1,
+        "model": "Example",
+        "ipv4addr": "192.0.2.3"
+      }
+    ],
+    "switchport": [
+      {
+        "id": 1,
+        "name": "eth1",
+        "switchid": 1,
+        "ifHighSpeed": 10000,
+        "active": 1
+      },
+      {
+        "id": 2,
+        "name": "eth2",
+        "switchid": 2,
+        "ifHighSpeed": 25000,
+        "active": 1
+      }
+    ],
+    "vlan": [
+      {
+        "id": 1,
+        "name": "Peering LAN",
+        "number": 100
+      },
+      {
+        "id": 2,
+        "name": "Second peering LAN",
+        "number": 200
+      }
+    ],
+    "networkinfo": [
+      {
+        "id": 1,
+        "vlanid": 1,
+        "protocol": 4,
+        "network": "192.0.2.0",
+        "masklen": 24
+      },
+      {
+        "id": 2,
+        "vlanid": 1,
+        "protocol": 6,
+        "network": "2001:db8::",
+        "masklen": 64
+      },
+      {
+        "id": 3,
+        "vlanid": 2,
+        "protocol": 4,
+        "network": "198.51.100.0",
+        "masklen": 24
+      }
+    ],
+    "contact": [
+      {
+        "id": 1,
+        "name": "NOC",
+        "email": "noc@example.net",
+        "phone": "",
+        "custid": 1
+      }
+    ],
+    "virtualinterface": [
+      {
+        "id": 1,
+        "name": "Example dual-stack LAG",
+        "custid": 1,
+        "lag_framing": true,
+        "mtu": 9000
+      }
+    ],
+    "physicalinterface": [
+      {
+        "id": 1,
+        "virtualinterfaceid": 1,
+        "switchportid": 1,
+        "speed": 10000,
+        "status": 1
+      },
+      {
+        "id": 2,
+        "virtualinterfaceid": 1,
+        "switchportid": 2,
+        "speed": 25000,
+        "status": 1
+      }
+    ],
+    "vlaninterface": [
+      {
+        "id": 1,
+        "virtualinterfaceid": 1,
+        "vlanid": 1,
+        "ipv4enabled": 1,
+        "ipv6enabled": 1,
+        "ipv4addressid": 1,
+        "ipv6addressid": 1
+      },
+      {
+        "id": 2,
+        "virtualinterfaceid": 1,
+        "vlanid": 2,
+        "ipv4enabled": 1,
+        "ipv6enabled": 0,
+        "ipv4addressid": 2
+      }
+    ],
+    "ipv4address": [
+      {
+        "id": 1,
+        "vlanid": 1,
+        "address": "192.0.2.10"
+      },
+      {
+        "id": 2,
+        "vlanid": 2,
+        "address": "198.51.100.10"
+      }
+    ],
+    "ipv6address": [
+      {
+        "id": 1,
+        "vlanid": 1,
+        "address": "2001:db8::10"
+      }
+    ],
+    "l2address": [
+      {
+        "id": 1,
+        "vlan_interface_id": 1,
+        "mac": "020000000001",
+        "created": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 2,
+        "vlan_interface_id": 2,
+        "mac": "020000000002"
+      },
+      {
+        "id": 3,
+        "vlan_interface_id": 1,
+        "mac": "020000000003"
+      }
+    ],
+    "sflow_receiver": [
+      {
+        "id": 1,
+        "virtual_interface_id": 1,
+        "dst_ip": "198.51.100.250",
+        "dst_port": 6343,
+        "created_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 2,
+        "virtual_interface_id": 1,
+        "dst_ip": "2001:db8:ffff::250",
+        "dst_port": 6343,
+        "active": 0
+      }
+    ],
+    "macaddress": [
+      {
+        "id": 90,
+        "virtualinterfaceid": 1,
+        "mac": "0200000000ff",
+        "firstseen": "2020-01-01 00:00:00",
+        "lastseen": "2020-01-02 00:00:00"
+      }
+    ]
+  }
+}
