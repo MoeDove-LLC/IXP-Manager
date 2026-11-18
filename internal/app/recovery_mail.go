@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moedove/ixp-manager/internal/migrate"
 	"github.com/moedove/ixp-manager/internal/notify"
 )
 
@@ -23,19 +24,30 @@ type RecoveryRequest struct {
 	UsedAt     time.Time `json:"usedAt,omitempty"`
 }
 type Invitation struct {
-	ID             string    `json:"id"`
-	Email          string    `json:"email"`
-	MemberID       string    `json:"memberId"`
-	MemberAdmin    bool      `json:"memberAdmin"`
-	InvitedBy      string    `json:"invitedBy"`
-	ExistingUserID string    `json:"existingUserId,omitempty"`
-	Generation     uint64    `json:"generation"`
-	TokenHash      string    `json:"tokenHash"`
-	CreatedAt      time.Time `json:"createdAt"`
-	ExpiresAt      time.Time `json:"expiresAt"`
-	AcceptedAt     time.Time `json:"acceptedAt,omitempty"`
-	Revoked        bool      `json:"revoked"`
+	ID             string                   `json:"id"`
+	Email          string                   `json:"email"`
+	MemberID       string                   `json:"memberId"`
+	MemberAdmin    bool                     `json:"memberAdmin"`
+	InvitedBy      string                   `json:"invitedBy"`
+	ExistingUserID string                   `json:"existingUserId,omitempty"`
+	Generation     uint64                   `json:"generation"`
+	TokenHash      string                   `json:"tokenHash"`
+	CreatedAt      time.Time                `json:"createdAt"`
+	ExpiresAt      time.Time                `json:"expiresAt"`
+	AcceptedAt     time.Time                `json:"acceptedAt,omitempty"`
+	Revoked        bool                     `json:"revoked"`
+	LegacyAccount  *legacyAccountInvitation `json:"legacyAccount,omitempty"`
 }
+
+type legacyAccountInvitation struct {
+	ArchiveChecksum       string                      `json:"archiveChecksum"`
+	SourceUserID          string                      `json:"sourceUserId"`
+	IssuerCreatedAt       string                      `json:"issuerCreatedAt"`
+	ExistingUserCreatedAt string                      `json:"existingUserCreatedAt,omitempty"`
+	Organizations         []legacyAccountOrganization `json:"organizations"`
+}
+
+var errLegacyInvitationConsent = errors.New("组织范围已更新，请重新核对邀请后再接受")
 
 func mailAddress(raw string) bool {
 	a, err := mail.ParseAddress(raw)
@@ -75,7 +87,140 @@ func invitationStatus(i Invitation, now time.Time) string {
 	return "pending"
 }
 func publicInvitation(s *State, i Invitation) Record {
-	return Record{"id": i.ID, "email": i.Email, "memberId": i.MemberID, "memberName": str(find(s, "members", i.MemberID), "name"), "memberAdmin": i.MemberAdmin, "status": invitationStatus(i, time.Now()), "createdAt": i.CreatedAt, "expiresAt": i.ExpiresAt}
+	view := Record{"id": i.ID, "email": i.Email, "memberId": i.MemberID, "memberName": str(find(s, "members", i.MemberID), "name"), "memberAdmin": i.MemberAdmin, "status": invitationStatus(i, time.Now()), "createdAt": i.CreatedAt, "expiresAt": i.ExpiresAt}
+	addLegacyInvitationOrganizations(s, i, view)
+	return view
+}
+
+func legacyInvitationOrganizations(s *State, i Invitation) []Record {
+	if i.LegacyAccount == nil {
+		return nil
+	}
+	organizations := make([]Record, 0, len(i.LegacyAccount.Organizations))
+	for _, organization := range i.LegacyAccount.Organizations {
+		name := organization.MemberName
+		if current := find(s, "members", organization.MemberID); current != nil && str(current, "createdAt") == organization.MemberCreatedAt {
+			name = str(current, "name")
+		}
+		organizations = append(organizations, Record{"memberId": organization.MemberID, "memberName": name, "memberAdmin": organization.MemberAdmin})
+	}
+	return organizations
+}
+
+func addLegacyInvitationOrganizations(s *State, i Invitation, view Record) []Record {
+	organizations := legacyInvitationOrganizations(s, i)
+	if organizations == nil {
+		return nil
+	}
+	for _, organization := range organizations {
+		if organization["memberId"] == i.MemberID {
+			view["memberName"] = organization["memberName"]
+			break
+		}
+	}
+	view["memberAdmin"], view["organizations"] = i.MemberAdmin, organizations
+	return organizations
+}
+
+func (a *App) legacyInvitationConsentRevision(i Invitation, organizations []Record) string {
+	return a.resourceETag("legacy-invite-consent", Record{"id": i.ID, "tokenHash": i.TokenHash, "organizations": organizations})
+}
+
+func (a *App) validateLegacyInvitationConsent(s *State, i Invitation, expected string) error {
+	if i.LegacyAccount != nil && (!validResourceETag(expected) ||
+		subtle.ConstantTimeCompare([]byte(expected), []byte(a.legacyInvitationConsentRevision(i, legacyInvitationOrganizations(s, i)))) != 1) {
+		return errLegacyInvitationConsent
+	}
+	return nil
+}
+
+func invitationTargetsMember(i Invitation, memberID string) bool {
+	if i.LegacyAccount == nil {
+		return i.MemberID == memberID
+	}
+	for _, organization := range i.LegacyAccount.Organizations {
+		if organization.MemberID == memberID {
+			return true
+		}
+	}
+	return false
+}
+
+func canManageInvitation(s *State, stored, user Record, i Invitation) bool {
+	if i.LegacyAccount != nil {
+		return str(user, "role") == "admin" && str(stored, "role") == "admin" && str(stored, "createdAt") == str(user, "createdAt")
+	}
+	return canInvite(s, stored, i.MemberID) && (str(user, "role") != "member" || str(user, "memberId") == i.MemberID)
+}
+
+func legacyInvitationAuthority(s *State, i Invitation, issuer Record) bool {
+	legacy := i.LegacyAccount
+	if !validResourceETag(legacy.ArchiveChecksum) || !migrate.AccountArchiveID(legacy.SourceUserID) || len(legacy.Organizations) == 0 ||
+		str(issuer, "role") != "admin" || !legacyAccountCurrentEntity(issuer) || str(issuer, "createdAt") != legacy.IssuerCreatedAt {
+		return false
+	}
+	primary := legacy.Organizations[0]
+	if primary.MemberID != i.MemberID || primary.MemberAdmin != i.MemberAdmin {
+		return false
+	}
+	owner := emailUser(s, i.Email)
+	if i.ExistingUserID == "" {
+		if owner != nil || legacy.ExistingUserCreatedAt != "" {
+			return false
+		}
+	} else if str(owner, "id") != i.ExistingUserID || str(owner, "role") != "member" || !legacyAccountCurrentEntity(owner) ||
+		str(owner, "createdAt") != legacy.ExistingUserCreatedAt || s.Security[i.ExistingUserID].Generation != i.Generation {
+		return false
+	}
+	memberships := membershipIDs(owner)
+	seen := make(map[string]bool, len(legacy.Organizations))
+	for _, organization := range legacy.Organizations {
+		member := find(s, "members", organization.MemberID)
+		if seen[organization.MemberID] || !legacyAccountCurrentEntity(member) ||
+			str(member, "status") != "active" || str(member, "createdAt") != organization.MemberCreatedAt {
+			return false
+		}
+		role := ""
+		if contains(memberships, organization.MemberID) {
+			role = "member"
+			if memberAdministrator(owner, organization.MemberID) {
+				role = "member-admin"
+			}
+		}
+		if role != organization.CurrentMemberRole || role == "member-admin" || (role == "member" && !organization.MemberAdmin) {
+			return false
+		}
+		seen[organization.MemberID] = true
+	}
+	return true
+}
+
+func invitationCurrent(s *State, i Invitation, now time.Time) bool {
+	if invitationStatus(i, now) != "pending" {
+		return false
+	}
+	issuer := find(s, "users", i.InvitedBy)
+	if i.LegacyAccount != nil {
+		return legacyInvitationAuthority(s, i, issuer)
+	}
+	if !canInvite(s, issuer, i.MemberID) {
+		return false
+	}
+	if i.ExistingUserID != "" {
+		u := find(s, "users", i.ExistingUserID)
+		return u != nil && strings.EqualFold(str(u, "email"), i.Email) && s.Security[i.ExistingUserID].Generation == i.Generation
+	}
+	return true
+}
+
+func auditInvitationOrganizations(s *State, actor, action string, i Invitation) {
+	if i.LegacyAccount == nil {
+		audit(s, actor, action, "members", i.MemberID)
+		return
+	}
+	for _, organization := range i.LegacyAccount.Organizations {
+		auditDetails(s, actor, action, "members", organization.MemberID, Record{"invitationId": i.ID, "memberAdmin": organization.MemberAdmin})
+	}
 }
 func findInvitation(s *State, raw string, now time.Time) (*Invitation, error) {
 	if !validMailToken(raw) {
@@ -87,14 +232,8 @@ func findInvitation(s *State, raw string, now time.Time) (*Invitation, error) {
 		if subtle.ConstantTimeCompare([]byte(i.TokenHash), []byte(hash)) != 1 {
 			continue
 		}
-		if invitationStatus(*i, now) != "pending" || !canInvite(s, find(s, "users", i.InvitedBy), i.MemberID) {
+		if !invitationCurrent(s, *i, now) {
 			return nil, errors.New("邀请链接无效或已过期")
-		}
-		if i.ExistingUserID != "" {
-			u := find(s, "users", i.ExistingUserID)
-			if u == nil || !strings.EqualFold(str(u, "email"), i.Email) || s.Security[i.ExistingUserID].Generation != i.Generation {
-				return nil, errors.New("邀请链接无效或已过期")
-			}
 		}
 		return i, nil
 	}
@@ -237,7 +376,11 @@ func (a *App) recoveryMailRoute(w http.ResponseWriter, r *http.Request) bool {
 			problem(w, 400, err.Error())
 			return true
 		}
-		respond(w, 200, Record{"email": i.Email, "memberId": i.MemberID, "memberName": str(find(&s, "members", i.MemberID), "name"), "expiresAt": i.ExpiresAt, "accountExists": emailUser(&s, i.Email) != nil})
+		view := Record{"email": i.Email, "memberId": i.MemberID, "memberName": str(find(&s, "members", i.MemberID), "name"), "expiresAt": i.ExpiresAt, "accountExists": emailUser(&s, i.Email) != nil}
+		if organizations := addLegacyInvitationOrganizations(&s, *i, view); organizations != nil {
+			view["organizationRevision"] = a.legacyInvitationConsentRevision(*i, organizations)
+		}
+		respond(w, 200, view)
 		return true
 	case "/api/invitations/accept":
 		a.acceptInvitation(w, r)
@@ -253,7 +396,7 @@ func (a *App) invitations(w http.ResponseWriter, r *http.Request, user Record) {
 	if path == "" && r.Method == "GET" {
 		items := []Record{}
 		for _, i := range s.Invitations {
-			if canInvite(&s, stored, i.MemberID) && (str(user, "role") != "member" || str(user, "memberId") == i.MemberID) {
+			if canManageInvitation(&s, stored, user, i) {
 				items = append(items, publicInvitation(&s, i))
 			}
 		}
@@ -266,14 +409,14 @@ func (a *App) invitations(w http.ResponseWriter, r *http.Request, user Record) {
 			for index := range s.Invitations {
 				i := &s.Invitations[index]
 				if i.ID == id {
-					if !canInvite(s, find(s, "users", str(user, "id")), i.MemberID) || (str(user, "role") == "member" && str(user, "memberId") != i.MemberID) {
+					if !canManageInvitation(s, find(s, "users", str(user, "id")), user, *i) {
 						return errors.New("invitation not found")
 					}
 					if !i.AcceptedAt.IsZero() {
 						return errors.New("accepted invitation cannot be revoked; remove membership explicitly")
 					}
 					i.Revoked = true
-					audit(s, str(user, "id"), "revoke-invitation", "members", i.MemberID)
+					auditInvitationOrganizations(s, str(user, "id"), "revoke-invitation", *i)
 					return nil
 				}
 			}
@@ -325,7 +468,7 @@ func (a *App) invitations(w http.ResponseWriter, r *http.Request, user Record) {
 			return errors.New("invitation capacity reached")
 		}
 		for _, i := range s.Invitations {
-			if i.Email == body.Email && i.MemberID == body.MemberID && invitationStatus(i, now) == "pending" {
+			if i.Email == body.Email && invitationTargetsMember(i, body.MemberID) && invitationStatus(i, now) == "pending" {
 				return errors.New("an active invitation already exists; revoke it before resending")
 			}
 		}
@@ -355,11 +498,12 @@ func (a *App) invitations(w http.ResponseWriter, r *http.Request, user Record) {
 }
 func (a *App) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Token           string `json:"token"`
-		Name            string `json:"name"`
-		Password        string `json:"password"`
-		CurrentPassword string `json:"currentPassword"`
-		Code            string `json:"code"`
+		Token                string `json:"token"`
+		Name                 string `json:"name"`
+		Password             string `json:"password"`
+		CurrentPassword      string `json:"currentPassword"`
+		Code                 string `json:"code"`
+		OrganizationRevision string `json:"organizationRevision"`
 	}
 	if !decode(w, r, &body) {
 		return
@@ -370,6 +514,10 @@ func (a *App) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		problem(w, 400, err.Error())
 		return
 	}
+	if err := a.validateLegacyInvitationConsent(&snapshot, *invitation, body.OrganizationRevision); err != nil {
+		problem(w, http.StatusConflict, err.Error())
+		return
+	}
 	existing := emailUser(&snapshot, invitation.Email)
 	var acceptedUserID string
 	apply := func(s *State, user Record, security *SecurityUser) error {
@@ -377,12 +525,28 @@ func (a *App) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
+		if err := a.validateLegacyInvitationConsent(s, *i, body.OrganizationRevision); err != nil {
+			return err
+		}
 		if !strings.EqualFold(str(user, "email"), i.Email) {
 			return errors.New("sign in as the invited account")
 		}
 		ids := membershipIDs(user)
-		if !contains(ids, i.MemberID) {
-			ids = append(ids, i.MemberID)
+		addMembership := func(memberID string, memberAdmin bool) {
+			if !contains(ids, memberID) {
+				ids = append(ids, memberID)
+			}
+			if memberAdmin && !memberAdministrator(user, memberID) {
+				admins, _ := user["memberAdminIds"].([]any)
+				user["memberAdminIds"] = append(admins, memberID)
+			}
+		}
+		if i.LegacyAccount == nil {
+			addMembership(i.MemberID, i.MemberAdmin)
+		} else {
+			for _, org := range i.LegacyAccount.Organizations {
+				addMembership(org.MemberID, org.MemberAdmin)
+			}
 		}
 		values := []any{}
 		for _, id := range ids {
@@ -392,19 +556,6 @@ func (a *App) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		if str(user, "memberId") == "" {
 			user["memberId"] = i.MemberID
 		}
-		if i.MemberAdmin {
-			admins, _ := user["memberAdminIds"].([]any)
-			found := false
-			for _, id := range admins {
-				if id == i.MemberID {
-					found = true
-				}
-			}
-			if !found {
-				admins = append(admins, i.MemberID)
-			}
-			user["memberAdminIds"] = admins
-		}
 		delete(user, membershipDetachedField)
 		if err = validate(s, "users", user); err != nil {
 			return err
@@ -413,7 +564,7 @@ func (a *App) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		security.Tokens = nil
 		i.AcceptedAt = time.Now().UTC()
 		acceptedUserID = str(user, "id")
-		audit(s, acceptedUserID, "accept-invitation", "members", i.MemberID)
+		auditInvitationOrganizations(s, acceptedUserID, "accept-invitation", *i)
 		return nil
 	}
 	if existing != nil {
@@ -431,6 +582,12 @@ func (a *App) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		err = a.reauth(str(signed, "id"), body.CurrentPassword, body.Code, func(s *State, security *SecurityUser) error {
+			if invitation.LegacyAccount != nil {
+				cookie, err := r.Cookie("moedove_session")
+				if err != nil || !a.memberRosterSessionCurrent(cookie.Value, session) {
+					return errors.New("session or selected member changed; sign in again")
+				}
+			}
 			return apply(s, find(s, "users", str(signed, "id")), security)
 		})
 	} else {
@@ -458,6 +615,10 @@ func (a *App) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	if err != nil {
+		if errors.Is(err, errLegacyInvitationConsent) {
+			problem(w, http.StatusConflict, err.Error())
+			return
+		}
 		problem(w, 403, err.Error())
 		return
 	}

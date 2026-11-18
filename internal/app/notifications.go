@@ -82,6 +82,18 @@ func (a *App) notifications(w http.ResponseWriter, r *http.Request, user Record)
 		if err := noteRetryApplicable(s, parts[0]); err != nil {
 			return err
 		}
+		for _, entry := range s.Outbox.Entries {
+			if entry.ID != parts[0] {
+				continue
+			}
+			if invitation := mailInvitation(s, entry); invitation != nil && invitation.LegacyAccount != nil {
+				current := find(s, "users", str(user, "id"))
+				if str(current, "role") != "admin" || str(current, "createdAt") != str(user, "createdAt") || !mailStillApplicable(s, entry, time.Now()) {
+					return errors.New("legacy account invitation is no longer applicable")
+				}
+			}
+			break
+		}
 		if err := s.Outbox.Retry(parts[0], time.Now()); err != nil {
 			return err
 		}
@@ -119,11 +131,10 @@ func (a *App) deliverOne(ctx context.Context, now time.Time) error {
 	}
 	msg, err := notify.OpenMessage(a.store.securityKey, entry)
 	if err == nil {
-		// Recheck subscriptions or patch allocation/attachment authority after
-		// claiming/decrypting and immediately
+		// Recheck delivery authority after claiming/decrypting and immediately
 		// before handing the immutable message to the transport. An SMTP message
 		// already handed off cannot be recalled if authority changes in flight.
-		if strings.HasPrefix(entry.Key, "note:") || strings.HasPrefix(entry.Key, "patch:") {
+		if strings.HasPrefix(entry.Key, "note:") || strings.HasPrefix(entry.Key, "patch:") || strings.HasPrefix(entry.Key, "invite:") {
 			s := a.store.Snapshot()
 			if !a.mailApplicable(&s, entry, time.Now()) {
 				return a.store.Update(func(s *State) error {
@@ -197,6 +208,19 @@ func (a *App) stopBackground() {
 	}
 }
 
+func mailInvitation(s *State, e notify.Entry) *Invitation {
+	id, invite := strings.CutPrefix(e.Key, "invite:")
+	if !invite {
+		return nil
+	}
+	for index := range s.Invitations {
+		if s.Invitations[index].ID == id {
+			return &s.Invitations[index]
+		}
+	}
+	return nil
+}
+
 // Recheck security-sensitive mail before delivery: revoked invitations, used
 // reset links and removed API credentials must not generate obsolete messages.
 func mailStillApplicable(s *State, e notify.Entry, now time.Time) bool {
@@ -216,21 +240,8 @@ func mailStillApplicable(s *State, e notify.Entry, now time.Time) bool {
 		return false
 	}
 	if strings.HasPrefix(e.Key, "invite:") {
-		id := strings.TrimPrefix(e.Key, "invite:")
-		for _, i := range s.Invitations {
-			if i.ID != id {
-				continue
-			}
-			if invitationStatus(i, now) != "pending" || !canInvite(s, find(s, "users", i.InvitedBy), i.MemberID) {
-				return false
-			}
-			if i.ExistingUserID != "" {
-				user := find(s, "users", i.ExistingUserID)
-				return user != nil && strings.EqualFold(str(user, "email"), i.Email) && s.Security[i.ExistingUserID].Generation == i.Generation
-			}
-			return true
-		}
-		return false
+		i := mailInvitation(s, e)
+		return i != nil && (i.LegacyAccount == nil || strings.EqualFold(e.To, i.Email)) && invitationCurrent(s, *i, now)
 	}
 	if strings.HasPrefix(e.Key, "token-expiry:") {
 		parts := strings.SplitN(strings.TrimPrefix(e.Key, "token-expiry:"), ":", 2)
