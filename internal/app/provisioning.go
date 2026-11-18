@@ -39,6 +39,8 @@ type ProvisionRevision struct {
 	ArtifactVersion  int                `json:"artifactVersion"`
 	ArtifactSize     int64              `json:"artifactSize"`
 	ArtifactChecksum string             `json:"artifactChecksum"`
+	LastPulledAt     *time.Time         `json:"lastPulledAt,omitempty"`
+	LastDownloadedAt *time.Time         `json:"lastDownloadedAt,omitempty"`
 	Pruned           bool               `json:"pruned,omitempty"`
 	PrunedAt         time.Time          `json:"prunedAt,omitempty"`
 	PrunedBy         string             `json:"prunedBy,omitempty"`
@@ -136,8 +138,12 @@ func validateProvisionRevision(d ProvisionRevision) error {
 	if d.Filename == "" || len(d.Filename) > 253 || filepath.Base(d.Filename) != d.Filename || strings.ContainsAny(d.Filename, "\r\n\x00\"\\") || d.Filename == "." || d.Filename == ".." {
 		return errors.New("invalid provisioning filename")
 	}
-	if _, err := time.Parse(time.RFC3339Nano, d.CreatedAt); err != nil {
+	createdAt, err := time.Parse(time.RFC3339Nano, d.CreatedAt)
+	if err != nil {
 		return errors.New("invalid provisioning timestamp")
+	}
+	if !validProvisionResponseTimes(d, createdAt) {
+		return errors.New("invalid provisioning response observations")
 	}
 	if d.TargetCount < 0 || d.TargetCount > 100000 || len(d.Notices) > 101 || len(d.Validation) > 2048 {
 		return errors.New("provisioning metadata limit exceeded")
@@ -452,7 +458,9 @@ func (a *App) provisioning(w http.ResponseWriter, r *http.Request, user Record, 
 		if d.Kind == provision.RFC2317MergeKind {
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		}
-		_, _ = w.Write([]byte(content))
+		if n, err := w.Write([]byte(content)); err == nil && n == len(content) {
+			a.recordProvisionResponse(d, session.API, time.Now())
+		}
 		return
 	}
 	if len(parts) == 2 && r.Method == "DELETE" {
